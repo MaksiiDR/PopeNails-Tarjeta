@@ -267,30 +267,17 @@
           </button>
         </div>
 
-        <!-- Action Buttons: Nueva Clienta & Importar desde Citas -->
+        <!-- Action Buttons: Nueva Clienta -->
         <div class="flex items-center gap-2">
-          <!-- Import from Appointments (Already has 96 clients!) -->
-          <button 
-            onclick="importFromAppointments()"
-            id="btnImport"
-            class="px-3 sm:px-4 py-2.5 bg-brand-lightPink hover:bg-brand-border/60 active:scale-95 text-brand-text text-xs font-bold rounded-xl border border-brand-border transition-all flex items-center gap-2 shadow-xs"
-            title="Importar clientas registradas en citas de Supabase"
-          >
-            <svg class="w-4 h-4 text-brand-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-            </svg>
-            <span>Importar desde Citas</span>
-          </button>
-
           <!-- New Client Button -->
           <button 
             onclick="openNewClientModal()"
-            class="px-3 sm:px-4 py-2.5 bg-brand-primary hover:bg-brand-text active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+            class="px-4 py-2.5 bg-brand-primary hover:bg-brand-text active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
             </svg>
-            <span>Nueva Clienta</span>
+            <span>+ Nueva Clienta</span>
           </button>
         </div>
       </section>
@@ -359,6 +346,29 @@
       <p class="text-[11px] text-brand-primary font-medium mt-3 text-center">
         Apunta la cámara al código QR de la pantalla del celular de la clienta
       </p>
+
+      <!-- Respaldo por si no funciona o no enfoca el lector de QR -->
+      <div class="w-full mt-4 pt-3 border-t border-brand-border/60">
+        <label class="block text-[11px] font-bold text-brand-text mb-1.5 text-center">
+          ¿Problemas con el QR o la cámara? Sella manualmente:
+        </label>
+        <div class="flex gap-2">
+          <input 
+            type="text" 
+            id="manualScannerInput" 
+            placeholder="Nombre, teléfono o código (ej. Milli)" 
+            class="flex-1 px-3 py-2 bg-brand-bg rounded-xl border border-brand-border text-xs text-brand-text focus:border-brand-primary focus:outline-none"
+            onkeydown="if(event.key === 'Enter') handleManualScanFallback()"
+          />
+          <button 
+            type="button" 
+            onclick="handleManualScanFallback()" 
+            class="px-3.5 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl hover:bg-brand-text transition-colors shadow-xs shrink-0"
+          >
+            Sellar
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -538,12 +548,12 @@
       // 1. Try checking loyalty_cards in Supabase
       if (sb) {
         try {
-          const { data, error } = await sb.from('loyalty_cards').select('*').order('client_name');
+          const { data, error } = await sb.from('loyalty_cards').select('*').order('created_at', { ascending: false });
           if (!error && data) {
             isSupabaseTableReady = true;
             clients = data;
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(clients));
-            updateStatusBadge(true, "Supabase Online");
+            updateStatusBadge(true, "Supabase Conectado");
             renderClientsList();
             return;
           }
@@ -552,20 +562,22 @@
         }
       }
 
-      // 2. Fallback: Load from localStorage
+      // 2. Load from localStorage (only real loyalty cards, purge any old apt- items)
       const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (cached) {
         try {
-          clients = JSON.parse(cached);
-          updateStatusBadge(false, "Modo Local (Caché)");
+          const parsed = JSON.parse(cached);
+          clients = parsed.filter(c => !c.id || !c.id.toString().startsWith('apt-'));
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(clients));
+          updateStatusBadge(false, "Modo Local");
           renderClientsList();
           return;
         } catch (e) {}
       }
 
-      // 3. Fallback: If empty, import directly from appointments table
-      updateStatusBadge(false, "Conectado a Citas");
-      await importFromAppointments(false);
+      clients = [];
+      updateStatusBadge(false, "Listo");
+      renderClientsList();
     }
 
     function updateStatusBadge(isOnline, label) {
@@ -574,82 +586,6 @@
       if (dot && text) {
         dot.className = isOnline ? 'w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse' : 'w-2.5 h-2.5 rounded-full bg-amber-500';
         text.innerText = label;
-      }
-    }
-
-    // Import from appointments (has 147 appointments across 96 unique clients!)
-    async function importFromAppointments(showFeedback = true) {
-      const sb = typeof getSupabaseClient === 'function' ? getSupabaseClient() : window.supabaseClient;
-      if (!sb) {
-        showToast("Error de conexión con Supabase", "⚠️");
-        return;
-      }
-
-      const btn = document.getElementById('btnImport');
-      if (btn) btn.classList.add('opacity-50', 'pointer-events-none');
-
-      try {
-        const { data, error } = await sb.from('appointments').select('client_name, service, date');
-        if (error || !data) {
-          throw error || new Error("No data");
-        }
-
-        // Aggregate by client_name
-        const map = new Map();
-        data.forEach(apt => {
-          if (!apt.client_name) return;
-          const name = apt.client_name.trim();
-          if (!map.has(name)) {
-            map.set(name, { count: 0, lastDate: apt.date });
-          }
-          const item = map.get(name);
-          item.count += 1;
-          if (apt.date && (!item.lastDate || apt.date > item.lastDate)) {
-            item.lastDate = apt.date;
-          }
-        });
-
-        // Merge with existing clients
-        const currentMap = new Map();
-        clients.forEach(c => currentMap.set(c.client_name.toLowerCase(), c));
-
-        let importedCount = 0;
-        for (const [name, meta] of map.entries()) {
-          const lower = name.toLowerCase();
-          if (!currentMap.has(lower)) {
-            // Give 1 stamp per visit, capped at 10, or count mod 10
-            const stamps = Math.min(10, meta.count);
-            const points = meta.count * 150;
-            const newClient = {
-              id: 'apt-' + Math.random().toString(36).substr(2, 9),
-              client_name: name,
-              phone: "",
-              stamps: stamps,
-              points: points,
-              last_visit: meta.lastDate || new Date().toISOString(),
-              total_cycles_completed: Math.floor(meta.count / 10)
-            };
-            clients.push(newClient);
-            importedCount++;
-          }
-        }
-
-        // Sort alphabetically
-        clients.sort((a, b) => a.client_name.localeCompare(b.client_name));
-
-        // Save
-        saveClientsData();
-        renderClientsList();
-
-        if (showFeedback) {
-          playSalonChime(true);
-          showToast(`¡Se sincronizaron ${map.size} clientas (${importedCount} nuevas)!`, "💅");
-        }
-      } catch (err) {
-        console.error(err);
-        if (showFeedback) showToast("Error al importar citas", "❌");
-      } finally {
-        if (btn) btn.classList.remove('opacity-50', 'pointer-events-none');
       }
     }
 
@@ -1039,51 +975,85 @@
       document.getElementById('scannerModal').classList.add('hidden');
     }
 
+    function handleManualScanFallback() {
+      const input = document.getElementById('manualScannerInput');
+      const val = (input ? input.value : '').trim();
+      if (!val) {
+        showToast("⚠️ Ingresa el nombre, código o teléfono de la clienta");
+        return;
+      }
+      handleQrDetected(val);
+      if (input) input.value = '';
+    }
+
     function handleQrDetected(decodedText) {
       playSalonChime(true);
       closeQrScanner();
 
       let clientFound = null;
+      let candidateName = "";
+      let candidateCode = "";
 
       // 1. Try parsing JSON payload from card
       try {
         const parsed = JSON.parse(decodedText);
-        if (parsed.client) {
-          clientFound = clients.find(c => c.client_name.toLowerCase() === parsed.client.toLowerCase());
-        }
+        if (parsed.client) candidateName = parsed.client.trim();
+        if (parsed.id) candidateCode = parsed.id.trim();
       } catch (e) {}
 
       // 2. Try parsing URL param ?c=
-      if (!clientFound && decodedText.includes('?c=')) {
+      if (!candidateName && decodedText.includes('?c=')) {
         const parts = decodedText.split('?c=');
         if (parts[1]) {
-          const rawName = decodeURIComponent(parts[1].split('&')[0]);
-          clientFound = clients.find(c => c.client_name.toLowerCase() === rawName.toLowerCase());
+          candidateName = decodeURIComponent(parts[1].split('&')[0]).trim();
         }
       }
 
-      // 3. Fallback: match by direct name or substring
-      if (!clientFound) {
-        clientFound = clients.find(c => decodedText.toLowerCase().includes(c.client_name.toLowerCase()));
+      // 3. Fallback: direct text
+      if (!candidateName) {
+        candidateName = decodedText.replace(/[{}"']/g, '').trim();
       }
+
+      // Search among existing clients
+      clientFound = clients.find(c => 
+        (c.client_name && c.client_name.toLowerCase() === candidateName.toLowerCase()) ||
+        (candidateCode && c.id && c.id.toString() === candidateCode) ||
+        (c.phone && candidateName && c.phone.includes(candidateName))
+      );
 
       if (clientFound) {
         currentScannedClient = clientFound;
         document.getElementById('scannedClientName').innerText = clientFound.client_name;
         document.getElementById('scannedClientInfo').innerText = `${clientFound.stamps || 0}/10 sellos • ${(clientFound.points || 0).toLocaleString('es-CL')} puntos`;
+        const nextStamp = (clientFound.stamps || 0) + 1;
+        document.getElementById('btnConfirmStamp').innerText = nextStamp <= 10 ? `✨ Añadir Sello #${nextStamp} (+150 pts)` : `🎉 ¡Canjear Premio!`;
         document.getElementById('scannedClientModal').classList.remove('hidden');
       } else {
-        // Option to create client from QR
-        const candidateName = decodedText.length < 40 ? decodedText : "Nueva Clienta";
-        if (confirm(`Código detectado: "${decodedText}".\n¿Deseas registrar a esta clienta ahora?`)) {
-          openNewClientModal();
-          document.getElementById('newClientName').value = candidateName;
-        }
+        // Clienta nueva: Abrir modal con botón de registro instantáneo
+        const cleanName = candidateName && candidateName.length < 50 ? candidateName : "Clienta Nueva";
+        const newClient = {
+          id: 'card-' + Math.random().toString(36).substr(2, 9),
+          client_name: cleanName,
+          phone: "",
+          stamps: 0,
+          points: 0,
+          last_visit: new Date().toISOString(),
+          total_cycles_completed: 0
+        };
+        currentScannedClient = newClient;
+        document.getElementById('scannedClientName').innerText = cleanName;
+        document.getElementById('scannedClientInfo').innerText = `🌱 Clienta Nueva (0/10 sellos)`;
+        document.getElementById('btnConfirmStamp').innerText = `💅 Registrar y Añadir 1º Sello (+150 pts)`;
+        document.getElementById('scannedClientModal').classList.remove('hidden');
       }
     }
 
     function confirmScannedStamp() {
       if (currentScannedClient) {
+        const exists = clients.some(c => c.client_name.toLowerCase() === currentScannedClient.client_name.toLowerCase());
+        if (!exists) {
+          clients.unshift(currentScannedClient);
+        }
         addStamp(currentScannedClient.client_name);
         closeScannedModal();
       }

@@ -157,12 +157,6 @@
         <p class="text-xs uppercase tracking-widest text-brand-primary font-bold">
           Tarjeta de Fidelización
         </p>
-
-        <!-- Live Sync Status Indicator -->
-        <div id="syncBadge" class="mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-lightPink text-[10px] text-brand-primary font-medium border border-brand-border/60">
-          <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-          <span id="syncText">Conectado en tiempo real</span>
-        </div>
       </header>
 
       <!-- Middle: Dynamic QR Code Section -->
@@ -189,12 +183,16 @@
           </div>
         </div>
 
-        <p class="text-[11px] text-brand-primary/80 mt-3 font-medium tracking-tight flex items-center gap-1">
-          <svg class="w-3 h-3 text-brand-primary" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path>
-          </svg>
-          Muestra en caja al momento de pagar
-        </p>
+        <!-- Respaldo por si no funciona o no enfoca el lector de QR -->
+        <div class="mt-3.5 flex flex-col items-center text-center">
+          <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-brand-border text-brand-text shadow-xs">
+            <span class="text-[10px] uppercase font-bold text-brand-primary">CÓDIGO:</span>
+            <span id="qrFallbackCode" class="font-mono font-bold text-xs text-brand-text">#PN-0000</span>
+          </div>
+          <p class="text-[11px] text-brand-primary/80 mt-1 font-medium">
+            Muestra el QR en caja o indica tu nombre / código
+          </p>
+        </div>
       </section>
 
       <!-- Stamp Card Section (matching assets/popenails_new_customer_card.jpg & popenails_loyalty_mockup.jpg) -->
@@ -375,6 +373,33 @@
     </div>
   </div>
 
+  <!-- Modal de Bienvenida para Clienta Nueva (Pide su nombre una sola vez) -->
+  <div id="welcomeOnboardModal" class="fixed inset-0 z-50 bg-[#4A2535]/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-7 shadow-2xl border-2 border-brand-border text-center flex flex-col items-center">
+      <div class="w-16 h-16 rounded-2xl bg-brand-lightPink flex items-center justify-center mb-3">
+        <img src="assets/logo.png" alt="PopeNails" class="w-10 h-10 object-contain">
+      </div>
+      <h3 class="font-playfair text-2xl font-bold text-brand-text mb-1">¡Bienvenida! 💅</h3>
+      <p class="text-xs text-brand-primary font-medium mb-4">Ingresa tu nombre para activar tu tarjeta digital de sellos (0/10)</p>
+      
+      <form onsubmit="handleActivateCard(event)" class="w-full flex flex-col gap-3">
+        <input 
+          type="text" 
+          id="onboardClientName" 
+          required 
+          placeholder="Tu Nombre (ej. Camila)" 
+          class="w-full text-center px-4 py-3 bg-brand-bg rounded-xl border-2 border-brand-border text-sm font-bold text-brand-text focus:border-brand-primary focus:outline-none"
+        />
+        <button 
+          type="submit" 
+          class="w-full py-3.5 bg-gradient-to-r from-brand-primary to-brand-accent text-white font-bold rounded-xl text-xs shadow-md transition-all active:scale-95"
+        >
+          Activar mi Tarjeta (0 Sellos) ✨
+        </button>
+      </form>
+    </div>
+  </div>
+
   <!-- Client Application Logic & Supabase Real-time Sync -->
   <script>
     const TOTAL_STAMPS = 10;
@@ -514,6 +539,8 @@
       document.getElementById('clientAvatar').innerText = clientData.initials;
       document.getElementById('clientTierText').innerText = clientData.tier;
       document.getElementById('clientIdText').innerText = clientData.id;
+      const qrFallbackEl = document.getElementById('qrFallbackCode');
+      if (qrFallbackEl) qrFallbackEl.innerText = clientData.id;
       document.getElementById('securityCodeText').innerText = `${clientData.id.replace('#', '')}-${clientData.initials}`;
       document.getElementById('rewardClientName').innerText = clientData.name.split(' ')[0];
 
@@ -570,25 +597,42 @@
       }
     }
 
-    // Read client from URL params (?c=Nombre or ?id=...)
+    function showWelcomeModal() {
+      const modal = document.getElementById('welcomeOnboardModal');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function handleActivateCard(e) {
+      e.preventDefault();
+      const input = document.getElementById('onboardClientName');
+      const name = (input ? input.value : '').trim();
+      if (!name) return;
+      localStorage.setItem('popenails_my_client_name', name);
+      document.getElementById('welcomeOnboardModal').classList.add('hidden');
+      
+      // Update URL query parameter
+      const url = new URL(window.location);
+      url.searchParams.set('c', name);
+      window.history.replaceState({}, '', url);
+
+      loadClientData();
+    }
+
+    // Read client from URL params (?c=Nombre or ?id=...) or LocalStorage
     async function loadClientData() {
       const urlParams = new URLSearchParams(window.location.search);
-      const clientParam = urlParams.get('c') || urlParams.get('cliente');
+      let clientParam = urlParams.get('c') || urlParams.get('cliente');
       const idParam = urlParams.get('id');
 
-      // If no parameter: clean welcome state with 0 stamps and 0 points
+      // If no URL parameter, check if client already entered their name on this phone
       if (!clientParam && !idParam) {
-        clientData = {
-          name: "¡Bienvenida!",
-          initials: "PN",
-          phone: "",
-          stamps: 0,
-          points: 0,
-          tier: "Nueva Clienta",
-          id: "#PN-NUEVA"
-        };
-        renderCard();
-        return;
+        const savedName = localStorage.getItem('popenails_my_client_name');
+        if (savedName) {
+          clientParam = savedName;
+        } else {
+          showWelcomeModal();
+          return;
+        }
       }
 
       const targetSearch = (clientParam || idParam).trim();
@@ -615,6 +659,7 @@
               tier: computeTier(data.stamps || 0, data.points || 0),
               id: `#PN-${(data.id || '84920').toString().slice(-5).toUpperCase()}`
             };
+            localStorage.setItem('popenails_my_client_name', data.client_name);
             renderCard();
             return;
           }
@@ -640,51 +685,24 @@
             tier: computeTier(found.stamps || 0, found.points || 0),
             id: found.member_id || `#PN-${(found.id || '84920').toString().slice(-5).toUpperCase()}`
           };
+          localStorage.setItem('popenails_my_client_name', found.client_name);
           renderCard();
           return;
         }
       } catch (e) {}
 
-      // 3. Fallback: check appointments table in Supabase
-      if (sb && clientParam) {
-        try {
-          const { data, error } = await sb.from('appointments')
-            .select('client_name, date, service')
-            .ilike('client_name', targetSearch);
-
-          if (!error && data && data.length > 0) {
-            const count = data.length;
-            const stamps = Math.min(10, count);
-            const points = count * 150;
-            const officialName = data[0].client_name;
-
-            clientData = {
-              name: officialName,
-              initials: getInitials(officialName),
-              phone: "",
-              stamps: stamps,
-              points: points,
-              tier: computeTier(stamps, points),
-              id: `#PN-${Math.abs(officialName.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)).toString().slice(-5)}`
-            };
-            renderCard();
-            return;
-          }
-        } catch (e) {
-          console.warn("Fallback appointments error:", e);
-        }
-      }
-
-      // 4. Default: New personalized card with 0 stamps
+      // 3. Clienta nueva con nombre propio: 0 sellos, 0 puntos
+      const cleanName = clientParam || "Clienta PopeNails";
       clientData = {
-        name: clientParam || "Clienta PopeNails",
-        initials: getInitials(clientParam || "CP"),
+        name: cleanName,
+        initials: getInitials(cleanName),
         phone: "",
         stamps: 0,
         points: 0,
         tier: "Nueva Clienta • Bienvenida",
-        id: `#PN-${Math.floor(10000 + Math.random() * 90000)}`
+        id: `#PN-${Math.abs(cleanName.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)).toString().slice(-5)}`
       };
+      localStorage.setItem('popenails_my_client_name', cleanName);
       renderCard();
     }
 
