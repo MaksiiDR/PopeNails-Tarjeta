@@ -1,0 +1,53 @@
+=============================================================================
+💅 INSTRUCCIONES PARA ACTIVAR LA TABLA DE FIDELIZACIÓN EN SUPABASE
+=============================================================================
+
+1. Abre tu panel de Supabase:
+   https://supabase.com/dashboard/project/ktmwjuamovupzwqifmct
+
+2. En el menú lateral izquierdo, haz clic en "SQL Editor" (el ícono que parece un cuadrado con las letras SQL o una consola).
+
+3. Haz clic en el botón verde "New query" (Nueva consulta).
+
+4. Copia y pega exactamente el siguiente bloque de código:
+
+-------------------------------- COPIAR DESDE AQUÍ --------------------------------
+
+CREATE TABLE IF NOT EXISTS loyalty_cards (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    client_name TEXT NOT NULL UNIQUE,
+    phone TEXT,
+    stamps INTEGER DEFAULT 0 CHECK (stamps >= 0 AND stamps <= 10),
+    points INTEGER DEFAULT 0 CHECK (points >= 0),
+    last_visit TIMESTAMPTZ DEFAULT now(),
+    total_cycles_completed INTEGER DEFAULT 0
+);
+
+-- Habilitar seguridad de filas (RLS)
+ALTER TABLE loyalty_cards ENABLE ROW LEVEL SECURITY;
+
+-- Políticas de acceso para permitir que el salón y las clientas lean y guarden sellos
+CREATE POLICY "Permitir lectura publica" 
+ON loyalty_cards FOR SELECT USING (true);
+
+CREATE POLICY "Permitir crear tarjetas" 
+ON loyalty_cards FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Permitir actualizar sellos" 
+ON loyalty_cards FOR UPDATE USING (true);
+
+CREATE POLICY "Permitir eliminar" 
+ON loyalty_cards FOR DELETE USING (true);
+
+-- Índices para que las búsquedas por nombre o teléfono sean instantáneas
+CREATE INDEX IF NOT EXISTS idx_loyalty_cards_client_name ON loyalty_cards(client_name);
+CREATE INDEX IF NOT EXISTS idx_loyalty_cards_phone ON loyalty_cards(phone);
+
+-------------------------------- HASTA AQUÍ --------------------------------
+
+5. Presiona el botón "RUN" (o presiona Ctrl + Enter).
+   Verás un mensaje verde que dice: "Success. No rows returned".
+
+¡Y listo! Tu base de datos quedará 100% activa para guardar los sellos y puntos de todas tus clientas.
+=============================================================================
