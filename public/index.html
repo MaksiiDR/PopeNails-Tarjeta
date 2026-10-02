@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>PopeNails - Tarjeta Digital de Fidelización</title>
+  
+  <!-- PWA & Meta Tags -->
+  <meta name="theme-color" content="#C97B8A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PopeNails">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="apple-touch-icon" href="public/icon-192.jpg">
+
+  <!-- Google Fonts: Playfair Display & Nunito -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,500;1,600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              bg: '#FFF7F5',       /* Fondo oficial */
+              primary: '#C97B8A',  /* Primario oficial */
+              accent: '#E8A0A8',   /* Acento oficial */
+              text: '#4A2535',     /* Textos oficial */
+              border: '#F0D8D4',   /* Bordes oficial */
+              card: '#FFFFFF',
+              dark: '#3A1827',
+              lightPink: '#FFF0F2',
+              glow: '#F7D7DC'
+            }
+          },
+          fontFamily: {
+            serif: ['"Playfair Display"', 'Georgia', 'serif'],
+            sans: ['"Nunito"', 'system-ui', 'sans-serif']
+          },
+          boxShadow: {
+            'salon': '0 10px 30px -5px rgba(201, 123, 138, 0.18), 0 4px 12px -2px rgba(74, 37, 53, 0.06)',
+            'card': '0 8px 24px -4px rgba(201, 123, 138, 0.12), 0 2px 6px -1px rgba(74, 37, 53, 0.04)',
+            'qr': '0 6px 20px -3px rgba(74, 37, 53, 0.1)',
+            'stamp': '0 4px 10px rgba(201, 123, 138, 0.25)'
+          },
+          animation: {
+            'stamp-pop': 'stampPop 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards',
+            'pulse-soft': 'pulseSoft 2.5s infinite ease-in-out',
+            'float': 'float 3s ease-in-out infinite'
+          },
+          keyframes: {
+            stampPop: {
+              '0%': { transform: 'scale(0.6) rotate(-10deg)', opacity: '0.4' },
+              '70%': { transform: 'scale(1.15) rotate(4deg)', opacity: '1' },
+              '100%': { transform: 'scale(1) rotate(0deg)', opacity: '1' }
+            },
+            pulseSoft: {
+              '0%, 100%': { opacity: '1', transform: 'scale(1)' },
+              '50%': { opacity: '0.88', transform: 'scale(0.98)' }
+            },
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-4px)' }
+            }
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- QRCode.js CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <style>
+    body {
+      background-color: #FFF7F5;
+      color: #4A2535;
+      font-family: 'Nunito', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    .font-playfair {
+      font-family: 'Playfair Display', serif;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #FFF7F5;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #F0D8D4;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #C97B8A;
+    }
+
+    /* Nail polish bottle shine effect */
+    .bottle-gloss {
+      position: relative;
+      overflow: hidden;
+    }
+    .bottle-gloss::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      transform: skewX(-20deg);
+      transition: 0.6s;
+    }
+    .stamped:hover .bottle-gloss::after {
+      left: 140%;
+    }
+
+    /* Scan line animation inside QR container */
+    @keyframes scanLineAnim {
+      0% { top: 4px; opacity: 0; }
+      15% { opacity: 0.8; }
+      85% { opacity: 0.8; }
+      100% { top: calc(100% - 6px); opacity: 0; }
+    }
+    .scanner-active .scan-line {
+      display: block;
+      animation: scanLineAnim 1.6s ease-in-out infinite alternate;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-brand-bg text-brand-text antialiased selection:bg-brand-accent selection:text-white flex flex-col justify-between items-center py-4 px-3 sm:px-6">
+
+  <!-- Desktop Presentation Wrapper -->
+  <main class="w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center">
+    
+    <!-- Phone / Loyalty Card Surface -->
+    <div class="w-full bg-white rounded-3xl shadow-salon border border-brand-border/70 overflow-hidden flex flex-col p-5 sm:p-7 relative transition-all duration-300">
+      
+      <!-- Top Subtle Glow Decoration -->
+      <div class="absolute -top-16 -right-16 w-36 h-36 bg-brand-accent/20 rounded-full blur-2xl pointer-events-none"></div>
+      <div class="absolute -bottom-16 -left-16 w-36 h-36 bg-brand-primary/15 rounded-full blur-2xl pointer-events-none"></div>
+
+      <!-- Header: Logo & Brand Name -->
+      <header class="flex flex-col items-center text-center relative z-10 pt-1">
+        <!-- Logo Image (Crescent moon with stars) -->
+        <div class="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center mb-1 group cursor-pointer transition-transform duration-300 hover:scale-105" title="PopeNails Salon">
+          <img 
+            src="assets/logo.png" 
+            alt="PopeNails Logo" 
+            class="w-full h-full object-contain filter drop-shadow-sm select-none"
+            loading="eager"
+          />
+        </div>
+
+        <!-- Brand Title in Playfair Display -->
+        <h1 class="font-playfair text-2xl sm:text-3xl font-semibold tracking-wide text-brand-text mb-0.5">
+          PopeNails
+        </h1>
+        <p class="text-xs uppercase tracking-widest text-brand-primary font-bold">
+          Tarjeta de Fidelización
+        </p>
+      </header>
+
+      <!-- Middle: Dynamic QR Code Section -->
+      <section class="flex flex-col items-center justify-center my-3 relative z-10">
+        <!-- Interactive QR Box (Tap to enlarge or scan) -->
+        <div 
+          id="qrCardContainer"
+          class="relative p-3 bg-white rounded-2xl border-2 border-brand-border shadow-qr cursor-pointer transition-all duration-300 hover:border-brand-primary hover:shadow-salon group"
+          onclick="toggleQrModal(true)"
+          title="Toca para ampliar el código QR"
+          role="button"
+          tabindex="0"
+          aria-label="Código QR de fidelización. Toca para ver en grande."
+        >
+          <!-- Dynamic Scanner Bar (visible during simulation) -->
+          <div class="scan-line hidden absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-brand-primary to-transparent z-20 shadow-[0_0_8px_#C97B8A]"></div>
+
+          <!-- QR Target Container (Rendered by QRCode.js) -->
+          <div id="qrcode" class="w-32 h-32 sm:w-36 sm:h-36 flex items-center justify-center rounded-lg overflow-hidden bg-white"></div>
+
+          <!-- Micro Badge "ESCANEAR" / Zoom icon -->
+          <div class="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-brand-primary text-white text-[10px] font-bold tracking-wider uppercase px-2.5 py-0.5 rounded-full shadow-sm flex items-center gap-1 group-hover:bg-brand-text transition-colors">
+            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"></path>
+            </svg>
+            <span>ESCANEAR</span>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-brand-primary/80 mt-3 font-medium tracking-tight flex items-center gap-1">
+          <svg class="w-3 h-3 text-brand-primary" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path>
+          </svg>
+          Muestra en recepción antes de abonar
+        </p>
+      </section>
+
+      <!-- Stamp Card Section (matching assets/popenails_new_customer_card.jpg & popenails_loyalty_mockup.jpg) -->
+      <section class="w-full bg-[#FFFDFD] rounded-2xl border border-brand-border p-3 sm:p-4 my-1 shadow-card relative z-10">
+        
+        <!-- Card Inner Top Bar (e.g. '0 PUNTOS' / '1,450 PUNTOS' and '10 spots') -->
+        <div class="flex items-center justify-between pb-2 mb-2 border-b border-brand-border/60">
+          <span id="cardHeaderPoints" class="text-xs font-bold text-brand-text uppercase tracking-wide">
+            0 PUNTOS
+          </span>
+          <span class="text-[11px] text-brand-text/60 font-medium">
+            10 spots
+          </span>
+        </div>
+
+        <!-- 10 Stamps Grid: 2 rows x 5 columns of Nail Polish bottles -->
+        <div id="stampsGrid" class="grid grid-cols-5 gap-2 sm:gap-2.5 items-center justify-items-center py-1">
+          <!-- Will be rendered dynamically via renderStampsGrid() -->
+        </div>
+
+        <!-- Card Inner Bottom Info (matching mockup: 'TARJETA DE SELLOS', '0/10 SELLOS', '¡Comienza a sumar sellos!') -->
+        <div class="mt-2.5 pt-2 border-t border-brand-border/60 text-center flex flex-col items-center">
+          <h2 class="font-playfair text-xs sm:text-sm font-bold uppercase tracking-wider text-brand-text mb-0.5">
+            Tarjeta de Sellos
+          </h2>
+          <p id="stampCountText" class="text-xs font-extrabold text-brand-primary tracking-wide">
+            0/10 SELLOS
+          </p>
+          <p id="stampSubText" class="text-[11px] text-brand-text/75 font-medium mt-0.5">
+            ¡Comienza a sumar sellos!
+          </p>
+        </div>
+      </section>
+
+      <!-- Main Points Counter in Playfair Display -->
+      <section class="flex flex-col items-center justify-center my-2.5 relative z-10 text-center">
+        <div class="inline-flex items-baseline gap-1.5">
+          <span id="pointsValue" class="font-playfair text-3xl sm:text-4xl font-bold tracking-tight text-brand-text transition-all duration-300">
+            0
+          </span>
+          <span class="font-playfair text-xl sm:text-2xl font-semibold tracking-wider text-brand-text">
+            PUNTOS
+          </span>
+        </div>
+        <p class="text-xs text-brand-primary font-medium tracking-wide mt-0.5">
+          Equivalente a <span id="pointsEquivalent" class="font-bold text-brand-text">$0</span> en servicios
+        </p>
+      </section>
+
+      <!-- Client Quick Info Bar -->
+      <footer class="pt-2.5 border-t border-brand-border/60 flex items-center justify-between text-[11px] text-brand-text/75 relative z-10">
+        <div class="flex items-center gap-2">
+          <div id="clientAvatar" class="w-6 h-6 rounded-full bg-brand-primary/15 text-brand-primary flex items-center justify-center font-bold text-[10px]">
+            CS
+          </div>
+          <div>
+            <p id="clientNameText" class="font-bold text-brand-text leading-tight">Camila Soto</p>
+            <p id="clientTierText" class="text-[10px] text-brand-primary leading-tight">Nueva Clienta • Bienvenida</p>
+          </div>
+        </div>
+        <div class="text-right">
+          <p class="text-[10px] text-brand-text/60">ID Miembro</p>
+          <p id="clientIdText" class="font-mono font-bold text-[10px] text-brand-text">#PN-10492</p>
+        </div>
+      </footer>
+
+    </div>
+
+    <!-- Quick Scenario Switcher & Simulation Action Bar -->
+    <div class="w-full mt-4 flex flex-col gap-2.5 relative z-10">
+      
+      <!-- Scenario Toggle (Nueva Clienta vs Clienta VIP) -->
+      <div class="bg-white/80 backdrop-blur-sm p-1 rounded-2xl border border-brand-border shadow-sm flex items-center gap-1">
+        <button 
+          id="btnScenarioNew"
+          onclick="setScenario('new')" 
+          class="flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 bg-brand-primary text-white shadow-sm"
+        >
+          <span>🌱</span>
+          <span>Nueva Clienta (0 sellos)</span>
+        </button>
+        <button 
+          id="btnScenarioVip"
+          onclick="setScenario('vip')" 
+          class="flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-brand-text/70 hover:text-brand-text hover:bg-brand-lightPink"
+        >
+          <span>⭐</span>
+          <span>Clienta VIP (8 sellos)</span>
+        </button>
+      </div>
+
+      <!-- Action Buttons: Simulate Scan / Reset -->
+      <div class="flex items-center gap-2">
+        <!-- Main Simulation Button -->
+        <button 
+          id="btnSimulateScan"
+          onclick="simulateScanAndStamp()" 
+          class="flex-1 py-3 px-4 bg-gradient-to-r from-brand-primary to-brand-accent hover:from-brand-accent hover:to-brand-primary active:scale-[0.98] text-white font-bold rounded-2xl shadow-salon transition-all duration-300 flex items-center justify-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
+        >
+          <svg class="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
+          </svg>
+          <span id="btnStampText">Simular Escaneo (+1 Sello #1)</span>
+        </button>
+
+        <!-- Reset Button -->
+        <button 
+          onclick="resetCurrentScenario()"
+          title="Reiniciar el escenario actual"
+          class="p-3 bg-white border border-brand-border hover:bg-brand-bg active:scale-95 text-brand-text rounded-2xl shadow-sm transition-all duration-200 flex items-center justify-center focus:outline-none"
+          aria-label="Reiniciar estado de tarjeta"
+        >
+          <svg class="w-4 h-4 text-brand-primary" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Hint under simulation -->
+      <div class="flex items-center justify-between text-[11px] text-brand-text/60 px-1">
+        <span>✨ PWA interactiva con Web Audio & Haptics</span>
+        <button onclick="shareOrInstallCard()" class="text-brand-primary hover:underline font-semibold flex items-center gap-1">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+          </svg>
+          Instalar Tarjeta
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Fullscreen Modal for QR Zoom (Terminal Scanning Counter Mode) -->
+  <div 
+    id="qrModal" 
+    class="fixed inset-0 z-50 bg-[#4A2535]/70 backdrop-blur-sm hidden flex items-center justify-center p-4 transition-opacity duration-300 opacity-0"
+    onclick="if(event.target === this) toggleQrModal(false)"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="qrModalTitle"
+  >
+    <div class="bg-white w-full max-w-xs sm:max-w-sm rounded-3xl p-6 shadow-2xl border-2 border-brand-border flex flex-col items-center text-center transform scale-95 transition-transform duration-300" id="qrModalBox">
+      <!-- Modal Close Button -->
+      <button 
+        onclick="toggleQrModal(false)"
+        class="self-end -mr-2 -mt-2 w-8 h-8 rounded-full bg-brand-bg text-brand-text hover:bg-brand-primary hover:text-white flex items-center justify-center transition-colors"
+        aria-label="Cerrar modal"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+
+      <div class="w-12 h-12 rounded-2xl bg-brand-lightPink flex items-center justify-center text-brand-primary mb-2">
+        <img src="assets/logo.png" alt="PopeNails" class="w-8 h-8 object-contain">
+      </div>
+      <h3 id="qrModalTitle" class="font-playfair text-xl font-bold text-brand-text">Escanear en Salón</h3>
+      <p class="text-xs text-brand-primary font-medium mb-4">Acerca tu pantalla al lector PopeNails</p>
+
+      <!-- Large QR Container -->
+      <div class="p-4 bg-white rounded-2xl border-2 border-brand-border shadow-inner mb-4">
+        <div id="qrcodeLarge" class="w-52 h-52 flex items-center justify-center"></div>
+      </div>
+
+      <div class="bg-brand-bg rounded-xl py-2 px-4 border border-brand-border w-full text-center">
+        <p class="text-[10px] text-brand-text/60 uppercase tracking-wider font-bold">Código de Seguridad Dinámico</p>
+        <p class="font-mono text-sm font-bold text-brand-primary tracking-widest mt-0.5" id="securityCodeText">PN-10492-CS</p>
+      </div>
+
+      <button 
+        onclick="toggleQrModal(false)"
+        class="w-full mt-4 py-2.5 bg-brand-primary hover:bg-brand-text text-white font-bold rounded-xl text-xs transition-colors"
+      >
+        Listo, volver a la tarjeta
+      </button>
+    </div>
+  </div>
+
+  <!-- Reward Celebration Modal (Unlocked on 10/10 stamps) -->
+  <div 
+    id="rewardModal" 
+    class="fixed inset-0 z-50 bg-[#4A2535]/75 backdrop-blur-md hidden flex items-center justify-center p-4 transition-opacity duration-300 opacity-0"
+    role="dialog"
+    aria-modal="true"
+  >
+    <div class="bg-white w-full max-w-xs sm:max-w-sm rounded-3xl p-6 shadow-2xl border-2 border-brand-accent flex flex-col items-center text-center transform scale-95 transition-transform duration-300" id="rewardModalBox">
+      <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-brand-primary to-brand-accent flex items-center justify-center text-white text-3xl shadow-stamp animate-bounce mb-3">
+        💅
+      </div>
+
+      <span class="text-[10px] font-bold uppercase tracking-widest text-brand-primary bg-brand-lightPink px-3 py-1 rounded-full mb-1">
+        ¡Tarjeta Completada!
+      </span>
+
+      <h2 class="font-playfair text-2xl font-bold text-brand-text mb-2">
+        ¡Manicura Gratis Ganada!
+      </h2>
+
+      <p class="text-xs text-brand-text/80 leading-relaxed mb-4">
+        ¡Felicidades, <span id="rewardClientName">Camila</span>! Has alcanzado los <strong>10 sellos oficiales</strong>. Ya puedes canjear tu esmaltado semi-permanente o tratamiento spa en tu próxima visita a <strong>PopeNails</strong>.
+      </p>
+
+      <div class="w-full bg-brand-bg border-2 border-dashed border-brand-primary/50 rounded-2xl p-3 mb-4">
+        <p class="text-[10px] text-brand-primary font-bold uppercase">Cupón Canjeable</p>
+        <p class="font-mono text-base font-bold text-brand-text tracking-wider">GIFT-FREE-NAILS-10</p>
+        <p class="text-[9px] text-brand-text/60 mt-0.5">Válido por 60 días en cualquier sucursal</p>
+      </div>
+
+      <div class="w-full flex flex-col gap-2">
+        <button 
+          onclick="closeRewardModal(true)"
+          class="w-full py-3 bg-brand-primary hover:bg-brand-text text-white font-bold rounded-xl text-xs shadow-md transition-colors"
+        >
+          Canjear y Comenzar Nuevo Ciclo
+        </button>
+        <button 
+          onclick="closeRewardModal(false)"
+          class="w-full py-2 bg-transparent text-brand-primary hover:text-brand-text font-bold text-xs"
+        >
+          Guardar para después
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Synthesizer & Application Logic -->
+  <script>
+    // Scenarios Definition:
+    // Default initial state: New Customer (0 stamps, 0 points, clean empty bottles) as in assets/popenails_new_customer_card.jpg
+    const SCENARIOS = {
+      new: {
+        id: 'new',
+        stamps: 0,
+        points: 0,
+        clientName: "Camila Soto",
+        clientInitials: "CS",
+        clientTier: "Nueva Clienta • Bienvenida",
+        clientId: "#PN-10492"
+      },
+      vip: {
+        id: 'vip',
+        stamps: 8,
+        points: 1450,
+        clientName: "Valentina Morales",
+        clientInitials: "VM",
+        clientTier: "Cliente VIP Rose Gold",
+        clientId: "#PN-84920"
+      }
+    };
+
+    const TOTAL_STAMPS = 10;
+    const POINTS_PER_STAMP = 150;
+
+    // Current Active State (Default: Nueva Clienta)
+    let currentScenarioId = 'new';
+    let state = {
+      stamps: SCENARIOS.new.stamps,
+      points: SCENARIOS.new.points,
+      clientName: SCENARIOS.new.clientName,
+      clientInitials: SCENARIOS.new.clientInitials,
+      clientTier: SCENARIOS.new.clientTier,
+      clientId: SCENARIOS.new.clientId
+    };
+
+    // Web Audio Synthesizer (Chimes & stamp sound effects without external files)
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playBeepSound() {
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.19);
+      } catch (e) {}
+    }
+
+    function playSuccessChime() {
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const startTime = ctx.currentTime + (idx * 0.08);
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, startTime);
+          gain.gain.setValueAtTime(0.25, startTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(startTime);
+          osc.stop(startTime + 0.36);
+        });
+      } catch (e) {}
+    }
+
+    // Nail polish bottle SVG generator
+    // Clean outline empty bottle (matching popenails_new_customer_card.jpg) vs stamped bottle (popenails_loyalty_mockup.jpg)
+    function getNailPolishSvg(isStamped, slotNumber) {
+      if (isStamped) {
+        // Stamped: Filled with rosy gradient (#E8A0A8 to #C97B8A) and crisp checkmark ✓
+        return `
+          <div class="relative w-11 h-14 sm:w-12 sm:h-16 flex items-center justify-center transition-all duration-300 hover:scale-105 stamped cursor-pointer" title="Sello #${slotNumber} completado">
+            <svg viewBox="0 0 38 52" class="w-full h-full drop-shadow-stamp" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="polishGrad_${slotNumber}" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#E8A0A8"/>
+                  <stop offset="100%" stop-color="#C97B8A"/>
+                </linearGradient>
+                <linearGradient id="capGrad_${slotNumber}" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#4A2535"/>
+                  <stop offset="50%" stop-color="#6E384F"/>
+                  <stop offset="100%" stop-color="#4A2535"/>
+                </linearGradient>
+              </defs>
+              <!-- Bottle Cap (Wand handle) -->
+              <rect x="13.5" y="2" width="11" height="15" rx="2.5" fill="url(#capGrad_${slotNumber})" stroke="#4A2535" stroke-width="0.8" />
+              <!-- Neck Ring -->
+              <rect x="15" y="17" width="8" height="2" rx="1" fill="#F0D8D4" />
+              <!-- Bottle Body filled with polish -->
+              <rect x="6" y="19" width="26" height="30" rx="6.5" fill="url(#polishGrad_${slotNumber})" stroke="#C97B8A" stroke-width="0.8" />
+              <!-- Glass reflection highlight -->
+              <path d="M9 22 C9 21 10 20 11 20 H12 V46 H11 C10 46 9 45 9 44 V22 Z" fill="#FFFFFF" fill-opacity="0.35" />
+              <!-- Checkmark -->
+              <path d="M12.5 34.5 L16.5 38.5 L25.5 28.5" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="absolute -top-1 -right-0.5 text-[10px] leading-none select-none">✨</span>
+          </div>
+        `;
+      } else {
+        // Clean empty bottle outline matching assets/popenails_new_customer_card.jpg
+        return `
+          <div class="relative w-11 h-14 sm:w-12 sm:h-16 flex items-center justify-center transition-all duration-300 hover:scale-105 cursor-pointer" title="Sello #${slotNumber} pendiente">
+            <svg viewBox="0 0 38 52" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <!-- Wand Cap Outline -->
+              <rect x="13.5" y="2.5" width="11" height="14.5" rx="2" stroke="#4A2535" stroke-width="1.8" stroke-linecap="round" fill="#FFFFFF" />
+              <!-- Neck joint line -->
+              <line x1="15" y1="17" x2="23" y2="17" stroke="#4A2535" stroke-width="1.6" stroke-linecap="round" />
+              <!-- Glass Bottle Body Outline -->
+              <rect x="6" y="19" width="26" height="30" rx="6" stroke="#4A2535" stroke-width="1.8" stroke-linejoin="round" fill="#FFFFFF" />
+            </svg>
+            ${slotNumber === TOTAL_STAMPS ? `
+              <span class="absolute -top-1 -right-0.5 text-[9px] bg-brand-primary text-white font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center shadow-xs" title="Premio al 10º">
+                ★
+              </span>
+            ` : ''}
+          </div>
+        `;
+      }
+    }
+
+    // Render stamps grid & all text states
+    function renderStampsGrid() {
+      const grid = document.getElementById('stampsGrid');
+      if (!grid) return;
+      
+      let html = '';
+      for (let i = 1; i <= TOTAL_STAMPS; i++) {
+        const isStamped = i <= state.stamps;
+        html += `
+          <div id="stampSlot_${i}" class="${isStamped ? 'animate-stamp-pop' : ''} flex items-center justify-center">
+            ${getNailPolishSvg(isStamped, i)}
+          </div>
+        `;
+      }
+      grid.innerHTML = html;
+
+      // 1. Update Card Inner Header Points & Count Text
+      const cardHeaderPoints = document.getElementById('cardHeaderPoints');
+      if (cardHeaderPoints) {
+        cardHeaderPoints.innerText = `${state.points.toLocaleString('es-CL')} PUNTOS`;
+      }
+
+      // 2. Update Stamp Counter Text & Subtitle inside card
+      const stampCountText = document.getElementById('stampCountText');
+      if (stampCountText) {
+        stampCountText.innerText = `${state.stamps}/${TOTAL_STAMPS} SELLOS`;
+      }
+
+      const stampSubText = document.getElementById('stampSubText');
+      if (stampSubText) {
+        if (state.stamps === 0) {
+          stampSubText.innerText = '¡Comienza a sumar sellos!';
+        } else if (state.stamps < TOTAL_STAMPS) {
+          const remaining = TOTAL_STAMPS - state.stamps;
+          stampSubText.innerText = `¡Solo ${remaining} sello${remaining === 1 ? '' : 's'} más para tu manicura gratis!`;
+        } else {
+          stampSubText.innerText = '🎉 ¡Premio desbloqueado! Manicura gratis.';
+        }
+      }
+
+      // 3. Update Main Points Value
+      const pointsEl = document.getElementById('pointsValue');
+      if (pointsEl) pointsEl.innerText = state.points.toLocaleString('es-CL');
+
+      const equivEl = document.getElementById('pointsEquivalent');
+      if (equivEl) equivEl.innerText = `$${(state.points * 10).toLocaleString('es-CL')}`;
+
+      // 4. Update Client Info
+      const nameEl = document.getElementById('clientNameText');
+      if (nameEl) nameEl.innerText = state.clientName;
+
+      const avatarEl = document.getElementById('clientAvatar');
+      if (avatarEl) avatarEl.innerText = state.clientInitials;
+
+      const tierEl = document.getElementById('clientTierText');
+      if (tierEl) tierEl.innerText = state.clientTier;
+
+      const idEl = document.getElementById('clientIdText');
+      if (idEl) idEl.innerText = state.clientId;
+
+      const secEl = document.getElementById('securityCodeText');
+      if (secEl) secEl.innerText = `${state.clientId.replace('#', '')}-${state.clientInitials}`;
+
+      const rewardClientEl = document.getElementById('rewardClientName');
+      if (rewardClientEl) rewardClientEl.innerText = state.clientName.split(' ')[0];
+
+      // 5. Update Simulation Button Text
+      const btnText = document.getElementById('btnStampText');
+      if (btnText) {
+        if (state.stamps >= TOTAL_STAMPS) {
+          btnText.innerText = '¡Tarjeta Llena! (Ver Premio)';
+        } else {
+          btnText.innerText = `Simular Escaneo (+1 Sello #${state.stamps + 1})`;
+        }
+      }
+
+      // 6. Update Scenario Toggle Buttons Style
+      const btnNew = document.getElementById('btnScenarioNew');
+      const btnVip = document.getElementById('btnScenarioVip');
+      if (btnNew && btnVip) {
+        if (currentScenarioId === 'new') {
+          btnNew.className = 'flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 bg-brand-primary text-white shadow-sm';
+          btnVip.className = 'flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-brand-text/70 hover:text-brand-text hover:bg-brand-lightPink';
+        } else {
+          btnVip.className = 'flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 bg-brand-primary text-white shadow-sm';
+          btnNew.className = 'flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-brand-text/70 hover:text-brand-text hover:bg-brand-lightPink';
+        }
+      }
+    }
+
+    // Quick switch between "Nueva Clienta" and "Clienta VIP"
+    function setScenario(scenarioKey) {
+      currentScenarioId = scenarioKey;
+      const target = SCENARIOS[scenarioKey];
+      state.stamps = target.stamps;
+      state.points = target.points;
+      state.clientName = target.clientName;
+      state.clientInitials = target.clientInitials;
+      state.clientTier = target.clientTier;
+      state.clientId = target.clientId;
+
+      playBeepSound();
+      if (navigator.vibrate) navigator.vibrate(30);
+
+      renderStampsGrid();
+      updateQRCode();
+    }
+
+    // Reset current scenario to its baseline
+    function resetCurrentScenario() {
+      setScenario(currentScenarioId);
+    }
+
+    // Simulation: Scan QR at salon terminal & stamp the card
+    function simulateScanAndStamp() {
+      if (state.stamps >= TOTAL_STAMPS) {
+        triggerConfetti();
+        openRewardModal();
+        return;
+      }
+
+      playBeepSound();
+      if (navigator.vibrate) {
+        navigator.vibrate([50, 40, 60]);
+      }
+
+      // QR Scanner glow animation
+      const qrBox = document.getElementById('qrCardContainer');
+      qrBox.classList.add('scanner-active', 'ring-4', 'ring-brand-accent/60');
+      setTimeout(() => {
+        qrBox.classList.remove('scanner-active', 'ring-4', 'ring-brand-accent/60');
+      }, 1000);
+
+      // Increment state
+      state.stamps += 1;
+      state.points += POINTS_PER_STAMP;
+
+      renderStampsGrid();
+      updateQRCode();
+
+      // Check if goal reached!
+      if (state.stamps === TOTAL_STAMPS) {
+        setTimeout(() => {
+          playSuccessChime();
+          triggerConfetti();
+          openRewardModal();
+        }, 400);
+      }
+    }
+
+    // Dynamic QR Codes (main and enlarged modal)
+    let qrCodeInstance = null;
+    let qrCodeLargeInstance = null;
+
+    function updateQRCode() {
+      const qrData = JSON.stringify({
+        store: "PopeNails Salon & Spa",
+        client: state.clientName,
+        id: state.clientId,
+        points: state.points,
+        stamps: state.stamps,
+        ts: Date.now()
+      });
+
+      const qrContainer = document.getElementById('qrcode');
+      if (qrContainer) {
+        qrContainer.innerHTML = '';
+        qrCodeInstance = new QRCode(qrContainer, {
+          text: qrData,
+          width: 140,
+          height: 140,
+          colorDark: "#4A2535",
+          colorLight: "#FFFFFF",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+      }
+
+      const qrLargeContainer = document.getElementById('qrcodeLarge');
+      if (qrLargeContainer) {
+        qrLargeContainer.innerHTML = '';
+        qrCodeLargeInstance = new QRCode(qrLargeContainer, {
+          text: qrData,
+          width: 220,
+          height: 220,
+          colorDark: "#4A2535",
+          colorLight: "#FFFFFF",
+          correctLevel: QRCode.CorrectLevel.H
+        });
+      }
+    }
+
+    // Modal Handlers
+    function toggleQrModal(show) {
+      const modal = document.getElementById('qrModal');
+      const box = document.getElementById('qrModalBox');
+      if (!modal || !box) return;
+
+      if (show) {
+        playBeepSound();
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+          modal.classList.remove('opacity-0');
+          box.classList.remove('scale-95');
+          box.classList.add('scale-100');
+        }, 10);
+      } else {
+        modal.classList.add('opacity-0');
+        box.classList.remove('scale-100');
+        box.classList.add('scale-95');
+        setTimeout(() => {
+          modal.classList.add('hidden');
+        }, 300);
+      }
+    }
+
+    function openRewardModal() {
+      const modal = document.getElementById('rewardModal');
+      const box = document.getElementById('rewardModalBox');
+      if (!modal || !box) return;
+
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        box.classList.remove('scale-95');
+        box.classList.add('scale-100');
+      }, 10);
+    }
+
+    function closeRewardModal(resetCycle) {
+      const modal = document.getElementById('rewardModal');
+      const box = document.getElementById('rewardModalBox');
+      if (!modal || !box) return;
+
+      modal.classList.add('opacity-0');
+      box.classList.remove('scale-100');
+      box.classList.add('scale-95');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        if (resetCycle) {
+          state.stamps = 0;
+          renderStampsGrid();
+          updateQRCode();
+          triggerConfetti();
+        }
+      }, 300);
+    }
+
+    // Confetti celebration
+    function triggerConfetti() {
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 80,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#C97B8A', '#E8A0A8', '#FFF7F5', '#4A2535', '#FFD166']
+        });
+        setTimeout(() => {
+          confetti({
+            particleCount: 50,
+            angle: 60,
+            spread: 55,
+            origin: { x: 0 },
+            colors: ['#C97B8A', '#E8A0A8', '#FFFFFF']
+          });
+          confetti({
+            particleCount: 50,
+            angle: 120,
+            spread: 55,
+            origin: { x: 1 },
+            colors: ['#C97B8A', '#E8A0A8', '#FFFFFF']
+          });
+        }, 250);
+      }
+    }
+
+    // Share & PWA
+    function shareOrInstallCard() {
+      if (navigator.share) {
+        navigator.share({
+          title: 'PopeNails - Tarjeta de Fidelización',
+          text: `Tarjeta de sellos y puntos en PopeNails. (${state.stamps}/10 sellos y ${state.points} puntos)`,
+          url: window.location.href
+        }).catch(() => {});
+      } else {
+        alert('Para instalar PopeNails en tu pantalla de inicio:\n\n• En iOS (Safari): Presiona Compartir y "Agregar a pantalla de inicio".\n• En Android (Chrome): Presiona el menú (⋮) y "Instalar aplicación".');
+      }
+    }
+
+    // Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+
+    // Initial Execution (Starts in Nueva Clienta by default: 0 sellos, 0 puntos)
+    window.addEventListener('DOMContentLoaded', () => {
+      renderStampsGrid();
+      setTimeout(() => {
+        updateQRCode();
+      }, 100);
+    });
+  </script>
+</body>
+</html>
