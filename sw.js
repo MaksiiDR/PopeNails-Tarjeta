@@ -1,9 +1,11 @@
 // Service Worker for PopeNails PWA
-const CACHE_NAME = 'popenails-loyalty-v1';
+const CACHE_NAME = 'popenails-loyalty-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './admin.html',
   './manifest.json',
+  './supabaseConfig.js',
   './assets/logo.png',
   './public/icon-192.jpg',
   './public/icon-512.jpg'

@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>PopeNails - Panel de Control Salón</title>
+
+  <!-- PWA & Meta Tags -->
+  <meta name="theme-color" content="#C97B8A">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+
+  <!-- Google Fonts: Playfair Display & Nunito -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,500;1,600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              bg: '#FFF7F5',       /* Fondo oficial */
+              primary: '#C97B8A',  /* Primario oficial */
+              accent: '#E8A0A8',   /* Acento oficial */
+              text: '#4A2535',     /* Textos oficial */
+              border: '#F0D8D4',   /* Bordes oficial */
+              card: '#FFFFFF',
+              dark: '#3A1827',
+              lightPink: '#FFF0F2',
+              glow: '#F7D7DC'
+            }
+          },
+          fontFamily: {
+            serif: ['"Playfair Display"', 'Georgia', 'serif'],
+            sans: ['"Nunito"', 'system-ui', 'sans-serif']
+          },
+          boxShadow: {
+            'salon': '0 10px 30px -5px rgba(201, 123, 138, 0.18), 0 4px 12px -2px rgba(74, 37, 53, 0.06)',
+            'card': '0 6px 20px -3px rgba(201, 123, 138, 0.12), 0 2px 6px -1px rgba(74, 37, 53, 0.04)'
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Supabase CDN & Config -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabaseConfig.js"></script>
+
+  <!-- html5-qrcode CDN for Camera Scanning -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <style>
+    body {
+      background-color: #FFF7F5;
+      color: #4A2535;
+      font-family: 'Nunito', sans-serif;
+    }
+    .font-playfair {
+      font-family: 'Playfair Display', serif;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #FFF7F5;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #F0D8D4;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #C97B8A;
+    }
+    #reader video {
+      border-radius: 1rem;
+      object-fit: cover;
+      width: 100% !important;
+    }
+    #reader {
+      border: none !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-brand-bg text-brand-text flex flex-col selection:bg-brand-accent selection:text-white">
+
+  <!-- PIN LOCK SCREEN (Protected by default: '1234') -->
+  <div id="pinScreen" class="fixed inset-0 z-50 bg-[#4A2535]/85 backdrop-blur-md flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 sm:p-8 shadow-2xl border-2 border-brand-border text-center flex flex-col items-center">
+      <div class="w-16 h-16 rounded-2xl bg-brand-lightPink flex items-center justify-center mb-3">
+        <img src="assets/logo.png" alt="PopeNails" class="w-10 h-10 object-contain">
+      </div>
+      <h2 class="font-playfair text-2xl font-bold text-brand-text mb-1">Acceso Salón</h2>
+      <p class="text-xs text-brand-primary font-medium mb-5">Ingresa el PIN de seguridad de PopeNails</p>
+
+      <!-- PIN Input dots/display -->
+      <div class="w-full flex justify-center gap-3 mb-6">
+        <input 
+          type="password" 
+          id="pinInput" 
+          maxlength="6" 
+          placeholder="••••"
+          autofocus
+          class="w-40 text-center tracking-[0.5em] text-2xl font-mono py-2.5 px-4 bg-brand-bg border-2 border-brand-border rounded-xl focus:border-brand-primary focus:outline-none text-brand-text"
+          onkeydown="if(event.key === 'Enter') verifyPin()"
+        />
+      </div>
+
+      <p id="pinError" class="text-xs text-red-500 font-bold mb-3 hidden">
+        PIN incorrecto. Intenta con '1234'.
+      </p>
+
+      <!-- Numeric Keypad for fast touch input -->
+      <div class="grid grid-cols-3 gap-2.5 w-full max-w-[240px] mb-5">
+        <button onclick="pressDigit('1')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">1</button>
+        <button onclick="pressDigit('2')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">2</button>
+        <button onclick="pressDigit('3')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">3</button>
+        <button onclick="pressDigit('4')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">4</button>
+        <button onclick="pressDigit('5')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">5</button>
+        <button onclick="pressDigit('6')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">6</button>
+        <button onclick="pressDigit('7')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">7</button>
+        <button onclick="pressDigit('8')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">8</button>
+        <button onclick="pressDigit('9')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">9</button>
+        <button onclick="clearPin()" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl text-xs font-bold text-brand-primary transition-colors">BORRAR</button>
+        <button onclick="pressDigit('0')" class="py-3 bg-brand-bg hover:bg-brand-lightPink active:bg-brand-border rounded-xl font-bold text-lg text-brand-text transition-colors">0</button>
+        <button onclick="verifyPin()" class="py-3 bg-brand-primary text-white hover:bg-brand-text active:scale-95 rounded-xl font-bold text-sm transition-all shadow-md">ENTRAR</button>
+      </div>
+
+      <div class="text-[11px] text-brand-text/50">
+        PIN predeterminado del salón: <span class="font-mono font-bold text-brand-primary">1234</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN ADMIN APP -->
+  <div id="adminApp" class="hidden flex-1 flex flex-col">
+    
+    <!-- Top Navigation Header -->
+    <header class="bg-white border-b border-brand-border sticky top-0 z-30 shadow-xs">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+        <!-- Logo & Title -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-brand-lightPink p-1 flex items-center justify-center border border-brand-border">
+            <img src="assets/logo.png" alt="PopeNails" class="w-full h-full object-contain">
+          </div>
+          <div>
+            <h1 class="font-playfair text-xl font-bold text-brand-text leading-tight">
+              PopeNails
+            </h1>
+            <p class="text-[10px] uppercase tracking-widest text-brand-primary font-bold">
+              Panel de Fidelización
+            </p>
+          </div>
+        </div>
+
+        <!-- Header Actions: Scanner, Connection Status, Logout -->
+        <div class="flex items-center gap-2 sm:gap-3">
+          <!-- Live Camera QR Scanner Trigger -->
+          <button 
+            onclick="openQrScanner()" 
+            class="px-3 sm:px-4 py-2 bg-gradient-to-r from-brand-primary to-brand-accent hover:from-brand-accent hover:to-brand-primary text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
+            title="Escanear tarjeta con la cámara"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            <span class="hidden sm:inline">Escanear QR</span>
+          </button>
+
+          <!-- Client Card Quick Preview -->
+          <a 
+            href="index.html" 
+            target="_blank"
+            class="p-2 sm:px-3 sm:py-2 bg-brand-bg hover:bg-brand-lightPink text-brand-text text-xs font-bold rounded-xl border border-brand-border transition-colors flex items-center gap-1.5"
+            title="Abrir vista de clienta"
+          >
+            <svg class="w-4 h-4 text-brand-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+            </svg>
+            <span class="hidden sm:inline">Ver Tarjeta</span>
+          </a>
+
+          <!-- Logout -->
+          <button 
+            onclick="logoutAdmin()" 
+            class="p-2 text-brand-text/50 hover:text-red-600 rounded-xl hover:bg-red-50 transition-colors"
+            title="Bloquear panel"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 w-full flex-1 flex flex-col gap-6">
+
+      <!-- Metrics & Fast Action Bar -->
+      <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <!-- Metric 1: Total Clients -->
+        <div class="bg-white p-4 rounded-2xl border border-brand-border shadow-card flex flex-col">
+          <span class="text-[11px] text-brand-text/60 uppercase font-bold tracking-wider">Clientas Registradas</span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="metricTotalClients" class="font-playfair text-2xl sm:text-3xl font-bold text-brand-text">0</span>
+            <span class="text-xs text-brand-primary font-medium">en el club</span>
+          </div>
+        </div>
+
+        <!-- Metric 2: Stamps Awarded -->
+        <div class="bg-white p-4 rounded-2xl border border-brand-border shadow-card flex flex-col">
+          <span class="text-[11px] text-brand-text/60 uppercase font-bold tracking-wider">Sellos Totales</span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="metricTotalStamps" class="font-playfair text-2xl sm:text-3xl font-bold text-brand-primary">0</span>
+            <span class="text-xs text-brand-text/60 font-medium">otorgados</span>
+          </div>
+        </div>
+
+        <!-- Metric 3: Ready for Reward (10/10) -->
+        <div class="bg-white p-4 rounded-2xl border border-brand-border shadow-card flex flex-col">
+          <span class="text-[11px] text-brand-text/60 uppercase font-bold tracking-wider">Premios Listos (10/10)</span>
+          <div class="flex items-baseline gap-1 mt-1">
+            <span id="metricReadyRewards" class="font-playfair text-2xl sm:text-3xl font-bold text-amber-600">0</span>
+            <span class="text-xs text-brand-text/60 font-medium">por canjear</span>
+          </div>
+        </div>
+
+        <!-- Metric 4: Supabase Connection Status -->
+        <div class="bg-white p-4 rounded-2xl border border-brand-border shadow-card flex flex-col justify-between">
+          <span class="text-[11px] text-brand-text/60 uppercase font-bold tracking-wider">Estado Base de Datos</span>
+          <div class="flex items-center gap-2 mt-1">
+            <span id="statusIndicatorDot" class="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></span>
+            <span id="statusIndicatorText" class="text-xs font-bold text-brand-text">Supabase Conectado</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Search & Controls Toolbar -->
+      <section class="bg-white p-4 rounded-2xl border border-brand-border shadow-card flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <!-- Live Search Input -->
+        <div class="relative flex-1">
+          <svg class="w-4 h-4 text-brand-primary absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Buscar por nombre o teléfono..." 
+            oninput="handleSearch()"
+            class="w-full pl-10 pr-9 py-2.5 bg-brand-bg rounded-xl border border-brand-border focus:border-brand-primary focus:outline-none text-sm text-brand-text placeholder:text-brand-text/40"
+          />
+          <button 
+            id="btnClearSearch"
+            onclick="clearSearch()"
+            class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-brand-text/40 hover:text-brand-text"
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Action Buttons: Nueva Clienta & Importar desde Citas -->
+        <div class="flex items-center gap-2">
+          <!-- Import from Appointments (Already has 96 clients!) -->
+          <button 
+            onclick="importFromAppointments()"
+            id="btnImport"
+            class="px-3 sm:px-4 py-2.5 bg-brand-lightPink hover:bg-brand-border/60 active:scale-95 text-brand-text text-xs font-bold rounded-xl border border-brand-border transition-all flex items-center gap-2 shadow-xs"
+            title="Importar clientas registradas en citas de Supabase"
+          >
+            <svg class="w-4 h-4 text-brand-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+            </svg>
+            <span>Importar desde Citas</span>
+          </button>
+
+          <!-- New Client Button -->
+          <button 
+            onclick="openNewClientModal()"
+            class="px-3 sm:px-4 py-2.5 bg-brand-primary hover:bg-brand-text active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
+            </svg>
+            <span>Nueva Clienta</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Client Cards List -->
+      <section class="flex flex-col gap-3">
+        <div class="flex items-center justify-between text-xs font-bold text-brand-text/60 px-1">
+          <span id="resultsCount">Mostrando 0 clientas</span>
+          <span class="text-[11px] font-normal text-brand-primary">💡 Presiona '+1 Sello' al finalizar su servicio</span>
+        </div>
+
+        <!-- Dynamic Clients Grid / Cards -->
+        <div id="clientsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="hidden bg-white rounded-3xl p-10 border border-brand-border text-center flex flex-col items-center justify-center my-6">
+          <div class="w-16 h-16 rounded-full bg-brand-lightPink flex items-center justify-center text-3xl mb-3">
+            💅
+          </div>
+          <h3 class="font-playfair text-xl font-bold text-brand-text mb-1">No se encontraron clientas</h3>
+          <p class="text-xs text-brand-text/60 max-w-sm mb-4">
+            No hay clientas que coincidan con la búsqueda. Puedes registrar una nueva o importar desde la agenda de citas.
+          </p>
+          <div class="flex gap-2">
+            <button onclick="clearSearch()" class="px-4 py-2 bg-brand-bg hover:bg-brand-lightPink text-xs font-bold rounded-xl border border-brand-border">
+              Limpiar búsqueda
+            </button>
+            <button onclick="openNewClientModal()" class="px-4 py-2 bg-brand-primary text-white text-xs font-bold rounded-xl shadow-xs">
+              + Registrar Nueva
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- MODAL: Live Camera QR Scanner -->
+  <div id="scannerModal" class="fixed inset-0 z-50 bg-[#4A2535]/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border-2 border-brand-border flex flex-col items-center">
+      <div class="w-full flex items-center justify-between pb-3 mb-3 border-b border-brand-border">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">📸</span>
+          <h3 class="font-playfair text-lg font-bold text-brand-text">Escanear QR de Clienta</h3>
+        </div>
+        <button onclick="closeQrScanner()" class="w-8 h-8 rounded-full bg-brand-bg hover:bg-brand-primary hover:text-white flex items-center justify-center text-xs font-bold transition-colors">
+          ✕
+        </button>
+      </div>
+
+      <!-- Camera Viewfinder -->
+      <div class="w-full aspect-square bg-black rounded-2xl overflow-hidden relative border-2 border-brand-primary/40 shadow-inner flex items-center justify-center">
+        <div id="reader" class="w-full h-full"></div>
+        <div id="scannerPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-white text-xs p-4 text-center">
+          <svg class="w-8 h-8 text-brand-primary animate-spin mb-2" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Iniciando cámara del dispositivo...
+        </div>
+      </div>
+
+      <p class="text-[11px] text-brand-primary font-medium mt-3 text-center">
+        Apunta la cámara al código QR de la pantalla del celular de la clienta
+      </p>
+    </div>
+  </div>
+
+  <!-- MODAL: Scanned Client Quick Stamp Confirmation -->
+  <div id="scannedClientModal" class="fixed inset-0 z-50 bg-[#4A2535]/85 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border-2 border-brand-accent flex flex-col items-center text-center">
+      <div class="w-14 h-14 rounded-2xl bg-brand-lightPink flex items-center justify-center text-brand-primary text-2xl mb-2">
+        💅
+      </div>
+      <span class="text-[10px] font-bold uppercase tracking-widest text-brand-primary bg-brand-bg px-2.5 py-0.5 rounded-full mb-1">
+        Clienta Identificada
+      </span>
+      <h3 id="scannedClientName" class="font-playfair text-2xl font-bold text-brand-text mb-0.5">Valentina</h3>
+      <p id="scannedClientInfo" class="text-xs text-brand-text/60 mb-4">8/10 sellos • 1,450 puntos</p>
+
+      <!-- Stamp Action -->
+      <button 
+        id="btnConfirmStamp"
+        onclick="confirmScannedStamp()"
+        class="w-full py-3.5 bg-gradient-to-r from-brand-primary to-brand-accent text-white font-bold rounded-2xl shadow-salon text-sm hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 mb-2"
+      >
+        <span class="text-lg">✨</span>
+        <span>Añadir +1 Sello Ahora</span>
+      </button>
+
+      <button 
+        onclick="closeScannedModal()"
+        class="w-full py-2 bg-transparent text-brand-text/60 hover:text-brand-text text-xs font-semibold"
+      >
+        Cerrar sin sellar
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL: New Client Form -->
+  <div id="newClientModal" class="fixed inset-0 z-50 bg-[#4A2535]/75 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border-2 border-brand-border flex flex-col">
+      <div class="flex items-center justify-between pb-3 mb-3 border-b border-brand-border">
+        <h3 class="font-playfair text-lg font-bold text-brand-text">Registrar Nueva Clienta</h3>
+        <button onclick="closeNewClientModal()" class="w-8 h-8 rounded-full bg-brand-bg hover:bg-brand-primary hover:text-white flex items-center justify-center text-xs font-bold transition-colors">
+          ✕
+        </button>
+      </div>
+
+      <form onsubmit="handleCreateClient(event)" class="flex flex-col gap-3.5">
+        <div>
+          <label class="block text-xs font-bold text-brand-text mb-1">Nombre y Apellido *</label>
+          <input 
+            type="text" 
+            id="newClientName" 
+            required
+            placeholder="ej. Valentina Morales" 
+            class="w-full px-3.5 py-2.5 bg-brand-bg rounded-xl border border-brand-border focus:border-brand-primary focus:outline-none text-sm text-brand-text"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-brand-text mb-1">Teléfono (WhatsApp)</label>
+          <input 
+            type="tel" 
+            id="newClientPhone" 
+            placeholder="ej. +56912345678" 
+            class="w-full px-3.5 py-2.5 bg-brand-bg rounded-xl border border-brand-border focus:border-brand-primary focus:outline-none text-sm text-brand-text"
+          />
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-brand-text mb-1">Sellos Iniciales</label>
+          <select 
+            id="newClientStamps"
+            class="w-full px-3.5 py-2.5 bg-brand-bg rounded-xl border border-brand-border focus:border-brand-primary focus:outline-none text-sm text-brand-text"
+          >
+            <option value="0" selected>0 sellos (Nueva)</option>
+            <option value="1">1 sello (+150 pts)</option>
+            <option value="2">2 sellos (+300 pts)</option>
+            <option value="3">3 sellos (+450 pts)</option>
+            <option value="5">5 sellos (+750 pts)</option>
+            <option value="8">8 sellos (VIP - 1,450 pts)</option>
+          </select>
+        </div>
+
+        <button 
+          type="submit" 
+          class="w-full mt-2 py-3 bg-brand-primary hover:bg-brand-text text-white font-bold rounded-xl text-xs shadow-md transition-colors"
+        >
+          Guardar y Dar de Alta
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 bg-[#4A2535] text-white px-4 py-3 rounded-2xl shadow-2xl border border-brand-border/40 text-xs font-bold flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300">
+    <span id="toastIcon">✨</span>
+    <span id="toastMessage">Operación realizada con éxito</span>
+  </div>
+
+  <!-- Application Logic -->
+  <script>
+    const DEFAULT_PIN = "1234";
+    const LOCAL_STORAGE_KEY = 'popenails_loyalty_clients';
+    const POINTS_PER_STAMP = 150;
+    const TOTAL_STAMPS = 10;
+
+    let clients = [];
+    let isSupabaseTableReady = false;
+    let html5QrScannerInstance = null;
+    let currentScannedClient = null;
+
+    // PIN Authentication
+    function pressDigit(digit) {
+      const input = document.getElementById('pinInput');
+      if (input.value.length < 6) {
+        input.value += digit;
+      }
+    }
+
+    function clearPin() {
+      document.getElementById('pinInput').value = '';
+      document.getElementById('pinError').classList.add('hidden');
+    }
+
+    function verifyPin() {
+      const input = document.getElementById('pinInput');
+      const error = document.getElementById('pinError');
+      if (input.value === DEFAULT_PIN) {
+        sessionStorage.setItem('popenails_admin_auth', 'true');
+        document.getElementById('pinScreen').classList.add('hidden');
+        document.getElementById('adminApp').classList.remove('hidden');
+        loadAllData();
+      } else {
+        error.classList.remove('hidden');
+        input.value = '';
+        input.focus();
+      }
+    }
+
+    function logoutAdmin() {
+      sessionStorage.removeItem('popenails_admin_auth');
+      window.location.reload();
+    }
+
+    // Audio synthesizer for salon feedback
+    function playSalonChime(isStamp) {
+      try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        const ctx = new AudioContextClass();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = isStamp ? 'triangle' : 'sine';
+        osc.frequency.setValueAtTime(isStamp ? 880 : 440, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(isStamp ? 1320 : 660, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.19);
+      } catch (e) {}
+    }
+
+    function showToast(msg, icon = '✨') {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMessage').innerText = msg;
+      document.getElementById('toastIcon').innerText = icon;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3200);
+    }
+
+    // Data Load & Supabase Integration
+    async function loadAllData() {
+      const sb = typeof getSupabaseClient === 'function' ? getSupabaseClient() : window.supabaseClient;
+
+      // 1. Try checking loyalty_cards in Supabase
+      if (sb) {
+        try {
+          const { data, error } = await sb.from('loyalty_cards').select('*').order('client_name');
+          if (!error && data) {
+            isSupabaseTableReady = true;
+            clients = data;
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(clients));
+            updateStatusBadge(true, "Supabase Online");
+            renderClientsList();
+            return;
+          }
+        } catch (e) {
+          console.warn("loyalty_cards no disponible aún:", e);
+        }
+      }
+
+      // 2. Fallback: Load from localStorage
+      const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (cached) {
+        try {
+          clients = JSON.parse(cached);
+          updateStatusBadge(false, "Modo Local (Caché)");
+          renderClientsList();
+          return;
+        } catch (e) {}
+      }
+
+      // 3. Fallback: If empty, import directly from appointments table
+      updateStatusBadge(false, "Conectado a Citas");
+      await importFromAppointments(false);
+    }
+
+    function updateStatusBadge(isOnline, label) {
+      const dot = document.getElementById('statusIndicatorDot');
+      const text = document.getElementById('statusIndicatorText');
+      if (dot && text) {
+        dot.className = isOnline ? 'w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse' : 'w-2.5 h-2.5 rounded-full bg-amber-500';
+        text.innerText = label;
+      }
+    }
+
+    // Import from appointments (has 147 appointments across 96 unique clients!)
+    async function importFromAppointments(showFeedback = true) {
+      const sb = typeof getSupabaseClient === 'function' ? getSupabaseClient() : window.supabaseClient;
+      if (!sb) {
+        showToast("Error de conexión con Supabase", "⚠️");
+        return;
+      }
+
+      const btn = document.getElementById('btnImport');
+      if (btn) btn.classList.add('opacity-50', 'pointer-events-none');
+
+      try {
+        const { data, error } = await sb.from('appointments').select('client_name, service, date');
+        if (error || !data) {
+          throw error || new Error("No data");
+        }
+
+        // Aggregate by client_name
+        const map = new Map();
+        data.forEach(apt => {
+          if (!apt.client_name) return;
+          const name = apt.client_name.trim();
+          if (!map.has(name)) {
+            map.set(name, { count: 0, lastDate: apt.date });
+          }
+          const item = map.get(name);
+          item.count += 1;
+          if (apt.date && (!item.lastDate || apt.date > item.lastDate)) {
+            item.lastDate = apt.date;
+          }
+        });
+
+        // Merge with existing clients
+        const currentMap = new Map();
+        clients.forEach(c => currentMap.set(c.client_name.toLowerCase(), c));
+
+        let importedCount = 0;
+        for (const [name, meta] of map.entries()) {
+          const lower = name.toLowerCase();
+          if (!currentMap.has(lower)) {
+            // Give 1 stamp per visit, capped at 10, or count mod 10
+            const stamps = Math.min(10, meta.count);
+            const points = meta.count * 150;
+            const newClient = {
+              id: 'apt-' + Math.random().toString(36).substr(2, 9),
+              client_name: name,
+              phone: "",
+              stamps: stamps,
+              points: points,
+              last_visit: meta.lastDate || new Date().toISOString(),
+              total_cycles_completed: Math.floor(meta.count / 10)
+            };
+            clients.push(newClient);
+            importedCount++;
+          }
+        }
+
+        // Sort alphabetically
+        clients.sort((a, b) => a.client_name.localeCompare(b.client_name));
+
+        // Save
+        saveClientsData();
+        renderClientsList();
+
+        if (showFeedback) {
+          playSalonChime(true);
+          showToast(`¡Se sincronizaron ${map.size} clientas (${importedCount} nuevas)!`, "💅");
+        }
+      } catch (err) {
+        console.error(err);
+        if (showFeedback) showToast("Error al importar citas", "❌");
+      } finally {
+        if (btn) btn.classList.remove('opacity-50', 'pointer-events-none');
+      }
+    }
+
+    // Save clients in memory, LocalStorage and Supabase
+    async function saveClientsData(singleClientToUpdate = null) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(clients));
+
+      // Trigger local storage event for open index.html tabs
+      window.dispatchEvent(new Event('storage'));
+
+      // If Supabase loyalty_cards table is ready, upsert!
+      const sb = typeof getSupabaseClient === 'function' ? getSupabaseClient() : window.supabaseClient;
+      if (sb && isSupabaseTableReady) {
+        try {
+          if (singleClientToUpdate) {
+            await sb.from('loyalty_cards').upsert({
+              client_name: singleClientToUpdate.client_name,
+              phone: singleClientToUpdate.phone,
+              stamps: singleClientToUpdate.stamps,
+              points: singleClientToUpdate.points,
+              total_cycles_completed: singleClientToUpdate.total_cycles_completed || 0,
+              last_visit: new Date().toISOString()
+            }, { onConflict: 'client_name' });
+          }
+        } catch (e) {
+          console.warn("Error sync Supabase:", e);
+        }
+      }
+    }
+
+    // Render Clients Grid
+    function renderClientsList() {
+      const container = document.getElementById('clientsContainer');
+      const emptyState = document.getElementById('emptyState');
+      const query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+
+      // Filter
+      const filtered = clients.filter(c => {
+        if (!query) return true;
+        const nameMatch = c.client_name && c.client_name.toLowerCase().includes(query);
+        const phoneMatch = c.phone && c.phone.toLowerCase().includes(query);
+        return nameMatch || phoneMatch;
+      });
+
+      // Update counters
+      document.getElementById('resultsCount').innerText = `Mostrando ${filtered.length} de ${clients.length} clientas`;
+      document.getElementById('metricTotalClients').innerText = clients.length;
+      document.getElementById('metricTotalStamps').innerText = clients.reduce((acc, c) => acc + (c.stamps || 0), 0);
+      document.getElementById('metricReadyRewards').innerText = clients.filter(c => (c.stamps || 0) >= TOTAL_STAMPS).length;
+
+      if (filtered.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+
+      let html = '';
+      filtered.forEach((client, idx) => {
+        const stamps = client.stamps || 0;
+        const isReadyForReward = stamps >= TOTAL_STAMPS;
+        const points = client.points || (stamps * POINTS_PER_STAMP);
+        const initials = client.client_name.trim().split(' ').slice(0, 2).map(p => p[0]).join('').toUpperCase();
+
+        html += `
+          <div class="bg-white rounded-2xl border ${isReadyForReward ? 'border-amber-300 ring-2 ring-amber-300/40' : 'border-brand-border'} p-4 shadow-card hover:shadow-salon transition-all flex flex-col justify-between gap-3 relative">
+            
+            ${isReadyForReward ? `
+              <div class="absolute -top-2.5 right-4 bg-amber-500 text-white text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                <span>🎁</span> ¡PREMIO DISPONIBLE!
+              </div>
+            ` : ''}
+
+            <!-- Client Info Row -->
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2.5">
+                <div class="w-10 h-10 rounded-full bg-brand-lightPink text-brand-primary font-bold text-sm flex items-center justify-center border border-brand-border">
+                  ${initials}
+                </div>
+                <div>
+                  <h3 class="font-playfair text-base font-bold text-brand-text leading-tight">
+                    ${client.client_name}
+                  </h3>
+                  <p class="text-[11px] text-brand-primary font-medium">
+                    ${client.phone ? client.phone : '<span class="text-brand-text/40">Sin teléfono</span>'}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Points Pill -->
+              <div class="text-right">
+                <span class="font-playfair text-sm font-bold text-brand-text">
+                  ${points.toLocaleString('es-CL')}
+                </span>
+                <span class="text-[10px] text-brand-primary block leading-tight">PTS</span>
+              </div>
+            </div>
+
+            <!-- Mini Bottles / Stamp Progress Bar -->
+            <div class="bg-brand-bg rounded-xl p-2.5 border border-brand-border/60 flex flex-col gap-1.5">
+              <div class="flex items-center justify-between text-[11px] font-bold text-brand-text">
+                <span class="flex items-center gap-1">
+                  <span class="text-xs">💅</span>
+                  <span>${stamps} / ${TOTAL_STAMPS} Sellos</span>
+                </span>
+                <span class="text-[10px] text-brand-primary font-medium">
+                  ${isReadyForReward ? '¡Canjeable!' : `Faltan ${TOTAL_STAMPS - stamps}`}
+                </span>
+              </div>
+
+              <!-- Progress Dots / Mini Bottles -->
+              <div class="grid grid-cols-10 gap-1 items-center">
+                ${Array.from({ length: TOTAL_STAMPS }).map((_, i) => {
+                  const filled = i < stamps;
+                  return `
+                    <div class="h-2 rounded-full transition-all ${filled ? 'bg-brand-primary shadow-xs' : 'bg-brand-border/80'}" title="Sello ${i+1}"></div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <!-- Quick Action Buttons: +1 Sello, -1 Sello, Canjear -->
+            <div class="flex items-center gap-1.5">
+              <!-- +1 Sello Button -->
+              <button 
+                onclick="addStamp('${client.client_name}')"
+                class="flex-1 py-2 px-2 bg-gradient-to-r from-brand-primary to-brand-accent hover:from-brand-accent hover:to-brand-primary text-white text-xs font-bold rounded-xl shadow-xs active:scale-95 transition-all flex items-center justify-center gap-1"
+                title="Sumar 1 sello a ${client.client_name}"
+              >
+                <span>✨</span>
+                <span>+1 Sello</span>
+              </button>
+
+              <!-- -1 Sello Button -->
+              <button 
+                onclick="removeStamp('${client.client_name}')"
+                class="py-2 px-2.5 bg-brand-bg hover:bg-brand-lightPink text-brand-text text-xs font-bold rounded-xl border border-brand-border active:scale-95 transition-all"
+                title="Restar 1 sello en caso de error"
+              >
+                -1
+              </button>
+
+              <!-- Canjear Premio Button -->
+              ${isReadyForReward ? `
+                <button 
+                  onclick="redeemReward('${client.client_name}')"
+                  class="py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center gap-1 animate-bounce"
+                  title="Canjear manicura gratis y reiniciar ciclo"
+                >
+                  <span>🎁</span> Canjear
+                </button>
+              ` : ''}
+            </div>
+
+            <!-- Sharing Links: Copy Link / WhatsApp / View Card -->
+            <div class="flex items-center justify-between pt-2 border-t border-brand-border/50 text-[11px]">
+              <div class="flex items-center gap-2">
+                <!-- Copy Link Button -->
+                <button 
+                  onclick="copyClientLink('${encodeURIComponent(client.client_name)}')"
+                  class="text-brand-primary hover:text-brand-text font-bold flex items-center gap-1"
+                  title="Copiar enlace de su tarjeta para enviárselo"
+                >
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+                  </svg>
+                  <span>Copiar Link</span>
+                </button>
+
+                <!-- WhatsApp Button -->
+                <button 
+                  onclick="sendWhatsApp('${encodeURIComponent(client.client_name)}', '${client.phone || ''}', ${stamps})"
+                  class="text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1"
+                  title="Enviar tarjeta por WhatsApp"
+                >
+                  <span>💬 WhatsApp</span>
+                </button>
+              </div>
+
+              <!-- View Card -->
+              <a 
+                href="index.html?c=${encodeURIComponent(client.client_name)}" 
+                target="_blank"
+                class="text-brand-text/50 hover:text-brand-primary flex items-center gap-0.5"
+                title="Ver cómo ve la clienta su tarjeta"
+              >
+                <span>Ver</span>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+                </svg>
+              </a>
+            </div>
+
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // Add Stamp
+    function addStamp(clientName) {
+      const client = clients.find(c => c.client_name === clientName);
+      if (!client) return;
+
+      if ((client.stamps || 0) < TOTAL_STAMPS) {
+        client.stamps = (client.stamps || 0) + 1;
+        client.points = (client.points || 0) + POINTS_PER_STAMP;
+        client.last_visit = new Date().toISOString();
+
+        playSalonChime(true);
+        saveClientsData(client);
+        renderClientsList();
+
+        if (client.stamps === TOTAL_STAMPS) {
+          triggerConfetti();
+          showToast(`🎉 ¡${client.client_name} completó 10 sellos! Manicura Gratis desbloqueada.`, "🎁");
+        } else {
+          showToast(`+1 Sello asignado a ${client.client_name} (${client.stamps}/10)`, "💅");
+        }
+      } else {
+        showToast(`${client.client_name} ya tiene los 10 sellos. Presiona 'Canjear'`, "🎁");
+      }
+    }
+
+    // Remove Stamp
+    function removeStamp(clientName) {
+      const client = clients.find(c => c.client_name === clientName);
+      if (!client || (client.stamps || 0) <= 0) return;
+
+      client.stamps -= 1;
+      client.points = Math.max(0, (client.points || 0) - POINTS_PER_STAMP);
+      playSalonChime(false);
+      saveClientsData(client);
+      renderClientsList();
+      showToast(`Sello removido de ${client.client_name} (${client.stamps}/10)`, "ℹ️");
+    }
+
+    // Redeem Reward
+    function redeemReward(clientName) {
+      const client = clients.find(c => c.client_name === clientName);
+      if (!client) return;
+
+      if (confirm(`¿Confirmas el canje de la Manicura Gratis para ${client.client_name}? Se reiniciarán sus sellos para un nuevo ciclo.`)) {
+        client.stamps = 0;
+        client.total_cycles_completed = (client.total_cycles_completed || 0) + 1;
+        playSalonChime(true);
+        triggerConfetti();
+        saveClientsData(client);
+        renderClientsList();
+        showToast(`¡Premio canjeado con éxito para ${client.client_name}! Ciclo reiniciado.`, "🎉");
+      }
+    }
+
+    // Copy Client Link
+    function copyClientLink(encodedName) {
+      const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', '').replace(/\/$/, '') + '/index.html';
+      const fullUrl = `${baseUrl}?c=${encodedName}`;
+      navigator.clipboard.writeText(fullUrl).then(() => {
+        showToast("Enlace copiado al portapapeles", "📋");
+      }).catch(() => {
+        prompt("Copia este enlace para enviarlo:", fullUrl);
+      });
+    }
+
+    // WhatsApp Message
+    function sendWhatsApp(encodedName, phone, stamps) {
+      const name = decodeURIComponent(encodedName);
+      const baseUrl = window.location.origin + window.location.pathname.replace('admin.html', '').replace(/\/$/, '') + '/index.html';
+      const link = `${baseUrl}?c=${encodedName}`;
+
+      const text = encodeURIComponent(
+        `¡Hola ${name}! 💅✨\n\nAquí tienes tu Tarjeta Digital de Fidelización en PopeNails. Llevas ${stamps} de 10 sellos acumulados.\n\nAccede a tu tarjeta cuando quieras aquí:\n${link}\n\n¡Te esperamos en tu próxima visita!`
+      );
+
+      const cleanPhone = phone.replace(/[^0-9]/g, '');
+      const waUrl = cleanPhone ? `https://wa.me/${cleanPhone}?text=${text}` : `https://wa.me/?text=${text}`;
+      window.open(waUrl, '_blank');
+    }
+
+    // Search Handlers
+    function handleSearch() {
+      const input = document.getElementById('searchInput');
+      const btnClear = document.getElementById('btnClearSearch');
+      if (input.value) {
+        btnClear.classList.remove('hidden');
+      } else {
+        btnClear.classList.add('hidden');
+      }
+      renderClientsList();
+    }
+
+    function clearSearch() {
+      const input = document.getElementById('searchInput');
+      input.value = '';
+      document.getElementById('btnClearSearch').classList.add('hidden');
+      renderClientsList();
+    }
+
+    // Create New Client Modal & Handler
+    function openNewClientModal() {
+      document.getElementById('newClientModal').classList.remove('hidden');
+      document.getElementById('newClientName').focus();
+    }
+
+    function closeNewClientModal() {
+      document.getElementById('newClientModal').classList.add('hidden');
+      document.getElementById('newClientName').value = '';
+      document.getElementById('newClientPhone').value = '';
+      document.getElementById('newClientStamps').value = '0';
+    }
+
+    async function handleCreateClient(e) {
+      e.preventDefault();
+      const name = document.getElementById('newClientName').value.trim();
+      const phone = document.getElementById('newClientPhone').value.trim();
+      const stamps = parseInt(document.getElementById('newClientStamps').value || '0', 10);
+
+      if (!name) return;
+
+      // Check duplicate
+      const exists = clients.some(c => c.client_name.toLowerCase() === name.toLowerCase());
+      if (exists) {
+        alert(`Ya existe una clienta registrada con el nombre "${name}".`);
+        return;
+      }
+
+      const newClient = {
+        id: 'cl-' + Math.random().toString(36).substr(2, 9),
+        client_name: name,
+        phone: phone,
+        stamps: stamps,
+        points: stamps * POINTS_PER_STAMP,
+        last_visit: new Date().toISOString(),
+        total_cycles_completed: 0
+      };
+
+      clients.unshift(newClient);
+      saveClientsData(newClient);
+      closeNewClientModal();
+      renderClientsList();
+      playSalonChime(true);
+      showToast(`Clienta "${name}" dada de alta correctamente`, "🌸");
+    }
+
+    // Live Camera QR Scanner (using html5-qrcode)
+    function openQrScanner() {
+      document.getElementById('scannerModal').classList.remove('hidden');
+      document.getElementById('scannerPlaceholder').classList.remove('hidden');
+
+      setTimeout(() => {
+        try {
+          html5QrScannerInstance = new Html5Qrcode("reader");
+          html5QrScannerInstance.start(
+            { facingMode: "environment" },
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 }
+            },
+            (decodedText) => {
+              handleQrDetected(decodedText);
+            },
+            (error) => {}
+          ).then(() => {
+            document.getElementById('scannerPlaceholder').classList.add('hidden');
+          }).catch(err => {
+            console.error("Camera access error:", err);
+            document.getElementById('scannerPlaceholder').innerHTML = `
+              <p class="text-red-400 font-bold mb-2">No se pudo acceder a la cámara</p>
+              <p class="text-[10px] text-white/70">Verifica los permisos de cámara en tu navegador.</p>
+            `;
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }, 200);
+    }
+
+    function closeQrScanner() {
+      if (html5QrScannerInstance) {
+        html5QrScannerInstance.stop().then(() => {
+          html5QrScannerInstance.clear();
+          html5QrScannerInstance = null;
+        }).catch(() => {});
+      }
+      document.getElementById('scannerModal').classList.add('hidden');
+    }
+
+    function handleQrDetected(decodedText) {
+      playSalonChime(true);
+      closeQrScanner();
+
+      let clientFound = null;
+
+      // 1. Try parsing JSON payload from card
+      try {
+        const parsed = JSON.parse(decodedText);
+        if (parsed.client) {
+          clientFound = clients.find(c => c.client_name.toLowerCase() === parsed.client.toLowerCase());
+        }
+      } catch (e) {}
+
+      // 2. Try parsing URL param ?c=
+      if (!clientFound && decodedText.includes('?c=')) {
+        const parts = decodedText.split('?c=');
+        if (parts[1]) {
+          const rawName = decodeURIComponent(parts[1].split('&')[0]);
+          clientFound = clients.find(c => c.client_name.toLowerCase() === rawName.toLowerCase());
+        }
+      }
+
+      // 3. Fallback: match by direct name or substring
+      if (!clientFound) {
+        clientFound = clients.find(c => decodedText.toLowerCase().includes(c.client_name.toLowerCase()));
+      }
+
+      if (clientFound) {
+        currentScannedClient = clientFound;
+        document.getElementById('scannedClientName').innerText = clientFound.client_name;
+        document.getElementById('scannedClientInfo').innerText = `${clientFound.stamps || 0}/10 sellos • ${(clientFound.points || 0).toLocaleString('es-CL')} puntos`;
+        document.getElementById('scannedClientModal').classList.remove('hidden');
+      } else {
+        // Option to create client from QR
+        const candidateName = decodedText.length < 40 ? decodedText : "Nueva Clienta";
+        if (confirm(`Código detectado: "${decodedText}".\n¿Deseas registrar a esta clienta ahora?`)) {
+          openNewClientModal();
+          document.getElementById('newClientName').value = candidateName;
+        }
+      }
+    }
+
+    function confirmScannedStamp() {
+      if (currentScannedClient) {
+        addStamp(currentScannedClient.client_name);
+        closeScannedModal();
+      }
+    }
+
+    function closeScannedModal() {
+      document.getElementById('scannedClientModal').classList.add('hidden');
+      currentScannedClient = null;
+    }
+
+    // Confetti
+    function triggerConfetti() {
+      if (typeof confetti === 'function') {
+        confetti({
+          particleCount: 90,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ['#C97B8A', '#E8A0A8', '#FFF7F5', '#4A2535', '#FFD166']
+        });
+      }
+    }
+
+    // Check existing auth on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const isAuth = sessionStorage.getItem('popenails_admin_auth');
+      if (isAuth === 'true') {
+        document.getElementById('pinScreen').classList.add('hidden');
+        document.getElementById('adminApp').classList.remove('hidden');
+        loadAllData();
+      } else {
+        document.getElementById('pinScreen').classList.remove('hidden');
+        document.getElementById('adminApp').classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

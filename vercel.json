@@ -1,8 +1,13 @@
 {
+  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
     }
   ]
 }

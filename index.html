@@ -76,6 +76,10 @@
   <!-- QRCode.js CDN -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
+  <!-- Supabase CDN & Config -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabaseConfig.js"></script>
+
   <!-- Canvas Confetti CDN -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 
@@ -101,11 +105,7 @@
       background: #F0D8D4;
       border-radius: 9999px;
     }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #C97B8A;
-    }
 
-    /* Nail polish bottle shine effect */
     .bottle-gloss {
       position: relative;
       overflow: hidden;
@@ -124,23 +124,11 @@
     .stamped:hover .bottle-gloss::after {
       left: 140%;
     }
-
-    /* Scan line animation inside QR container */
-    @keyframes scanLineAnim {
-      0% { top: 4px; opacity: 0; }
-      15% { opacity: 0.8; }
-      85% { opacity: 0.8; }
-      100% { top: calc(100% - 6px); opacity: 0; }
-    }
-    .scanner-active .scan-line {
-      display: block;
-      animation: scanLineAnim 1.6s ease-in-out infinite alternate;
-    }
   </style>
 </head>
 <body class="min-h-screen bg-brand-bg text-brand-text antialiased selection:bg-brand-accent selection:text-white flex flex-col justify-between items-center py-4 px-3 sm:px-6">
 
-  <!-- Desktop Presentation Wrapper -->
+  <!-- Main Container -->
   <main class="w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center">
     
     <!-- Phone / Loyalty Card Surface -->
@@ -169,11 +157,17 @@
         <p class="text-xs uppercase tracking-widest text-brand-primary font-bold">
           Tarjeta de Fidelización
         </p>
+
+        <!-- Live Sync Status Indicator -->
+        <div id="syncBadge" class="mt-1 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-brand-lightPink text-[10px] text-brand-primary font-medium border border-brand-border/60">
+          <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+          <span id="syncText">Conectado en tiempo real</span>
+        </div>
       </header>
 
       <!-- Middle: Dynamic QR Code Section -->
       <section class="flex flex-col items-center justify-center my-3 relative z-10">
-        <!-- Interactive QR Box (Tap to enlarge or scan) -->
+        <!-- Interactive QR Box (Tap to enlarge for cashier scanning) -->
         <div 
           id="qrCardContainer"
           class="relative p-3 bg-white rounded-2xl border-2 border-brand-border shadow-qr cursor-pointer transition-all duration-300 hover:border-brand-primary hover:shadow-salon group"
@@ -183,9 +177,6 @@
           tabindex="0"
           aria-label="Código QR de fidelización. Toca para ver en grande."
         >
-          <!-- Dynamic Scanner Bar (visible during simulation) -->
-          <div class="scan-line hidden absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-brand-primary to-transparent z-20 shadow-[0_0_8px_#C97B8A]"></div>
-
           <!-- QR Target Container (Rendered by QRCode.js) -->
           <div id="qrcode" class="w-32 h-32 sm:w-36 sm:h-36 flex items-center justify-center rounded-lg overflow-hidden bg-white"></div>
 
@@ -202,7 +193,7 @@
           <svg class="w-3 h-3 text-brand-primary" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"></path>
           </svg>
-          Muestra en recepción antes de abonar
+          Muestra en caja al momento de pagar
         </p>
       </section>
 
@@ -221,10 +212,10 @@
 
         <!-- 10 Stamps Grid: 2 rows x 5 columns of Nail Polish bottles -->
         <div id="stampsGrid" class="grid grid-cols-5 gap-2 sm:gap-2.5 items-center justify-items-center py-1">
-          <!-- Will be rendered dynamically via renderStampsGrid() -->
+          <!-- Rendered dynamically based on client state -->
         </div>
 
-        <!-- Card Inner Bottom Info (matching mockup: 'TARJETA DE SELLOS', '0/10 SELLOS', '¡Comienza a sumar sellos!') -->
+        <!-- Card Inner Bottom Info -->
         <div class="mt-2.5 pt-2 border-t border-brand-border/60 text-center flex flex-col items-center">
           <h2 class="font-playfair text-xs sm:text-sm font-bold uppercase tracking-wider text-brand-text mb-0.5">
             Tarjeta de Sellos
@@ -257,80 +248,44 @@
       <footer class="pt-2.5 border-t border-brand-border/60 flex items-center justify-between text-[11px] text-brand-text/75 relative z-10">
         <div class="flex items-center gap-2">
           <div id="clientAvatar" class="w-6 h-6 rounded-full bg-brand-primary/15 text-brand-primary flex items-center justify-center font-bold text-[10px]">
-            CS
+            PN
           </div>
           <div>
-            <p id="clientNameText" class="font-bold text-brand-text leading-tight">Camila Soto</p>
-            <p id="clientTierText" class="text-[10px] text-brand-primary leading-tight">Nueva Clienta • Bienvenida</p>
+            <p id="clientNameText" class="font-bold text-brand-text leading-tight">¡Bienvenida!</p>
+            <p id="clientTierText" class="text-[10px] text-brand-primary leading-tight">Nueva Clienta</p>
           </div>
         </div>
         <div class="text-right">
           <p class="text-[10px] text-brand-text/60">ID Miembro</p>
-          <p id="clientIdText" class="font-mono font-bold text-[10px] text-brand-text">#PN-10492</p>
+          <p id="clientIdText" class="font-mono font-bold text-[10px] text-brand-text">#PN-NUEVA</p>
         </div>
       </footer>
 
     </div>
 
-    <!-- Quick Scenario Switcher & Simulation Action Bar -->
-    <div class="w-full mt-4 flex flex-col gap-2.5 relative z-10">
-      
-      <!-- Scenario Toggle (Nueva Clienta vs Clienta VIP) -->
-      <div class="bg-white/80 backdrop-blur-sm p-1 rounded-2xl border border-brand-border shadow-sm flex items-center gap-1">
-        <button 
-          id="btnScenarioNew"
-          onclick="setScenario('new')" 
-          class="flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 bg-brand-primary text-white shadow-sm"
-        >
-          <span>🌱</span>
-          <span>Nueva Clienta (0 sellos)</span>
-        </button>
-        <button 
-          id="btnScenarioVip"
-          onclick="setScenario('vip')" 
-          class="flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-brand-text/70 hover:text-brand-text hover:bg-brand-lightPink"
-        >
-          <span>⭐</span>
-          <span>Clienta VIP (8 sellos)</span>
-        </button>
-      </div>
-
-      <!-- Action Buttons: Simulate Scan / Reset -->
-      <div class="flex items-center gap-2">
-        <!-- Main Simulation Button -->
-        <button 
-          id="btnSimulateScan"
-          onclick="simulateScanAndStamp()" 
-          class="flex-1 py-3 px-4 bg-gradient-to-r from-brand-primary to-brand-accent hover:from-brand-accent hover:to-brand-primary active:scale-[0.98] text-white font-bold rounded-2xl shadow-salon transition-all duration-300 flex items-center justify-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
-        >
-          <svg class="w-4 h-4 animate-bounce" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path>
-          </svg>
-          <span id="btnStampText">Simular Escaneo (+1 Sello #1)</span>
-        </button>
-
-        <!-- Reset Button -->
-        <button 
-          onclick="resetCurrentScenario()"
-          title="Reiniciar el escenario actual"
-          class="p-3 bg-white border border-brand-border hover:bg-brand-bg active:scale-95 text-brand-text rounded-2xl shadow-sm transition-all duration-200 flex items-center justify-center focus:outline-none"
-          aria-label="Reiniciar estado de tarjeta"
-        >
-          <svg class="w-4 h-4 text-brand-primary" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Hint under simulation -->
-      <div class="flex items-center justify-between text-[11px] text-brand-text/60 px-1">
-        <span>✨ PWA interactiva con Web Audio & Haptics</span>
+    <!-- Client Footer Info (No self-simulation buttons) -->
+    <div class="w-full mt-4 flex flex-col items-center gap-2 text-center text-xs text-brand-text/70">
+      <div class="flex items-center justify-center gap-3">
         <button onclick="shareOrInstallCard()" class="text-brand-primary hover:underline font-semibold flex items-center gap-1">
-          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
           </svg>
-          Instalar Tarjeta
+          Guardar en Pantalla de Inicio
         </button>
+        <span class="text-brand-border">•</span>
+        <a href="https://instagram.com" target="_blank" rel="noopener" class="text-brand-primary hover:underline font-semibold">
+          @popenails
+        </a>
+      </div>
+
+      <!-- Discreet Link to Salon Staff Portal -->
+      <div class="mt-2 text-[10px] text-brand-text/40">
+        <a href="admin.html" class="hover:text-brand-primary transition-colors flex items-center gap-1">
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+          </svg>
+          Acceso Salón PopeNails
+        </a>
       </div>
     </div>
 
@@ -346,7 +301,6 @@
     aria-labelledby="qrModalTitle"
   >
     <div class="bg-white w-full max-w-xs sm:max-w-sm rounded-3xl p-6 shadow-2xl border-2 border-brand-border flex flex-col items-center text-center transform scale-95 transition-transform duration-300" id="qrModalBox">
-      <!-- Modal Close Button -->
       <button 
         onclick="toggleQrModal(false)"
         class="self-end -mr-2 -mt-2 w-8 h-8 rounded-full bg-brand-bg text-brand-text hover:bg-brand-primary hover:text-white flex items-center justify-center transition-colors"
@@ -370,7 +324,7 @@
 
       <div class="bg-brand-bg rounded-xl py-2 px-4 border border-brand-border w-full text-center">
         <p class="text-[10px] text-brand-text/60 uppercase tracking-wider font-bold">Código de Seguridad Dinámico</p>
-        <p class="font-mono text-sm font-bold text-brand-primary tracking-widest mt-0.5" id="securityCodeText">PN-10492-CS</p>
+        <p class="font-mono text-sm font-bold text-brand-primary tracking-widest mt-0.5" id="securityCodeText">PN-CARD</p>
       </div>
 
       <button 
@@ -403,106 +357,66 @@
       </h2>
 
       <p class="text-xs text-brand-text/80 leading-relaxed mb-4">
-        ¡Felicidades, <span id="rewardClientName">Camila</span>! Has alcanzado los <strong>10 sellos oficiales</strong>. Ya puedes canjear tu esmaltado semi-permanente o tratamiento spa en tu próxima visita a <strong>PopeNails</strong>.
+        ¡Felicidades, <span id="rewardClientName">Clienta</span>! Has alcanzado los <strong>10 sellos oficiales</strong>. Ya puedes canjear tu esmaltado semi-permanente o tratamiento spa en tu próxima visita a <strong>PopeNails</strong>.
       </p>
 
       <div class="w-full bg-brand-bg border-2 border-dashed border-brand-primary/50 rounded-2xl p-3 mb-4">
         <p class="text-[10px] text-brand-primary font-bold uppercase">Cupón Canjeable</p>
         <p class="font-mono text-base font-bold text-brand-text tracking-wider">GIFT-FREE-NAILS-10</p>
-        <p class="text-[9px] text-brand-text/60 mt-0.5">Válido por 60 días en cualquier sucursal</p>
+        <p class="text-[9px] text-brand-text/60 mt-0.5">Válido en cualquier sucursal PopeNails</p>
       </div>
 
-      <div class="w-full flex flex-col gap-2">
-        <button 
-          onclick="closeRewardModal(true)"
-          class="w-full py-3 bg-brand-primary hover:bg-brand-text text-white font-bold rounded-xl text-xs shadow-md transition-colors"
-        >
-          Canjear y Comenzar Nuevo Ciclo
-        </button>
-        <button 
-          onclick="closeRewardModal(false)"
-          class="w-full py-2 bg-transparent text-brand-primary hover:text-brand-text font-bold text-xs"
-        >
-          Guardar para después
-        </button>
-      </div>
+      <button 
+        onclick="closeRewardModal()"
+        class="w-full py-2.5 bg-brand-primary hover:bg-brand-text text-white font-bold rounded-xl text-xs shadow-md transition-colors"
+      >
+        Entendido, gracias
+      </button>
     </div>
   </div>
 
-  <!-- Audio Synthesizer & Application Logic -->
+  <!-- Client Application Logic & Supabase Real-time Sync -->
   <script>
-    // Scenarios Definition:
-    // Default initial state: New Customer (0 stamps, 0 points, clean empty bottles) as in assets/popenails_new_customer_card.jpg
-    const SCENARIOS = {
-      new: {
-        id: 'new',
-        stamps: 0,
-        points: 0,
-        clientName: "Camila Soto",
-        clientInitials: "CS",
-        clientTier: "Nueva Clienta • Bienvenida",
-        clientId: "#PN-10492"
-      },
-      vip: {
-        id: 'vip',
-        stamps: 8,
-        points: 1450,
-        clientName: "Valentina Morales",
-        clientInitials: "VM",
-        clientTier: "Cliente VIP Rose Gold",
-        clientId: "#PN-84920"
-      }
-    };
-
     const TOTAL_STAMPS = 10;
-    const POINTS_PER_STAMP = 150;
+    const LOCAL_STORAGE_KEY = 'popenails_loyalty_clients';
 
-    // Current Active State (Default: Nueva Clienta)
-    let currentScenarioId = 'new';
-    let state = {
-      stamps: SCENARIOS.new.stamps,
-      points: SCENARIOS.new.points,
-      clientName: SCENARIOS.new.clientName,
-      clientInitials: SCENARIOS.new.clientInitials,
-      clientTier: SCENARIOS.new.clientTier,
-      clientId: SCENARIOS.new.clientId
+    // State of current card view
+    let clientData = {
+      name: "¡Bienvenida a PopeNails!",
+      initials: "PN",
+      phone: "",
+      stamps: 0,
+      points: 0,
+      tier: "Nueva Clienta",
+      id: "#PN-NUEVA"
     };
 
-    // Web Audio Synthesizer (Chimes & stamp sound effects without external files)
-    let audioCtx = null;
-    function getAudioContext() {
-      if (!audioCtx) {
+    let prevStamps = null;
+
+    // Helper: compute initials
+    function getInitials(name) {
+      if (!name) return "PN";
+      const parts = name.trim().split(' ');
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return name.slice(0, 2).toUpperCase();
+    }
+
+    // Helper: compute tier based on stamps/points
+    function computeTier(stamps, points) {
+      if (stamps >= 8 || points >= 1200) return "Cliente VIP Rose Gold";
+      if (stamps >= 4 || points >= 600) return "Cliente Frecuente";
+      if (stamps > 0) return "Miembro Club";
+      return "Nueva Clienta • Bienvenida";
+    }
+
+    // Web Audio chime
+    function playChime() {
+      try {
         const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-        if (AudioContextClass) audioCtx = new AudioContextClass();
-      }
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-      return audioCtx;
-    }
-
-    function playBeepSound() {
-      try {
-        const ctx = getAudioContext();
-        if (!ctx) return;
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(880, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 0.19);
-      } catch (e) {}
-    }
-
-    function playSuccessChime() {
-      try {
-        const ctx = getAudioContext();
-        if (!ctx) return;
+        if (!AudioContextClass) return;
+        const ctx = new AudioContextClass();
         const notes = [523.25, 659.25, 783.99, 1046.50];
         notes.forEach((freq, idx) => {
           const osc = ctx.createOscillator();
@@ -510,7 +424,7 @@
           const startTime = ctx.currentTime + (idx * 0.08);
           osc.type = 'triangle';
           osc.frequency.setValueAtTime(freq, startTime);
-          gain.gain.setValueAtTime(0.25, startTime);
+          gain.gain.setValueAtTime(0.2, startTime);
           gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
           osc.connect(gain);
           gain.connect(ctx.destination);
@@ -521,10 +435,8 @@
     }
 
     // Nail polish bottle SVG generator
-    // Clean outline empty bottle (matching popenails_new_customer_card.jpg) vs stamped bottle (popenails_loyalty_mockup.jpg)
     function getNailPolishSvg(isStamped, slotNumber) {
       if (isStamped) {
-        // Stamped: Filled with rosy gradient (#E8A0A8 to #C97B8A) and crisp checkmark ✓
         return `
           <div class="relative w-11 h-14 sm:w-12 sm:h-16 flex items-center justify-center transition-all duration-300 hover:scale-105 stamped cursor-pointer" title="Sello #${slotNumber} completado">
             <svg viewBox="0 0 38 52" class="w-full h-full drop-shadow-stamp" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -539,30 +451,21 @@
                   <stop offset="100%" stop-color="#4A2535"/>
                 </linearGradient>
               </defs>
-              <!-- Bottle Cap (Wand handle) -->
               <rect x="13.5" y="2" width="11" height="15" rx="2.5" fill="url(#capGrad_${slotNumber})" stroke="#4A2535" stroke-width="0.8" />
-              <!-- Neck Ring -->
               <rect x="15" y="17" width="8" height="2" rx="1" fill="#F0D8D4" />
-              <!-- Bottle Body filled with polish -->
               <rect x="6" y="19" width="26" height="30" rx="6.5" fill="url(#polishGrad_${slotNumber})" stroke="#C97B8A" stroke-width="0.8" />
-              <!-- Glass reflection highlight -->
               <path d="M9 22 C9 21 10 20 11 20 H12 V46 H11 C10 46 9 45 9 44 V22 Z" fill="#FFFFFF" fill-opacity="0.35" />
-              <!-- Checkmark -->
               <path d="M12.5 34.5 L16.5 38.5 L25.5 28.5" stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             <span class="absolute -top-1 -right-0.5 text-[10px] leading-none select-none">✨</span>
           </div>
         `;
       } else {
-        // Clean empty bottle outline matching assets/popenails_new_customer_card.jpg
         return `
           <div class="relative w-11 h-14 sm:w-12 sm:h-16 flex items-center justify-center transition-all duration-300 hover:scale-105 cursor-pointer" title="Sello #${slotNumber} pendiente">
             <svg viewBox="0 0 38 52" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <!-- Wand Cap Outline -->
               <rect x="13.5" y="2.5" width="11" height="14.5" rx="2" stroke="#4A2535" stroke-width="1.8" stroke-linecap="round" fill="#FFFFFF" />
-              <!-- Neck joint line -->
               <line x1="15" y1="17" x2="23" y2="17" stroke="#4A2535" stroke-width="1.6" stroke-linecap="round" />
-              <!-- Glass Bottle Body Outline -->
               <rect x="6" y="19" width="26" height="30" rx="6" stroke="#4A2535" stroke-width="1.8" stroke-linejoin="round" fill="#FFFFFF" />
             </svg>
             ${slotNumber === TOTAL_STAMPS ? `
@@ -575,168 +478,69 @@
       }
     }
 
-    // Render stamps grid & all text states
-    function renderStampsGrid() {
+    // Render Stamps & Card
+    function renderCard() {
       const grid = document.getElementById('stampsGrid');
-      if (!grid) return;
-      
-      let html = '';
-      for (let i = 1; i <= TOTAL_STAMPS; i++) {
-        const isStamped = i <= state.stamps;
-        html += `
-          <div id="stampSlot_${i}" class="${isStamped ? 'animate-stamp-pop' : ''} flex items-center justify-center">
-            ${getNailPolishSvg(isStamped, i)}
-          </div>
-        `;
-      }
-      grid.innerHTML = html;
-
-      // 1. Update Card Inner Header Points & Count Text
-      const cardHeaderPoints = document.getElementById('cardHeaderPoints');
-      if (cardHeaderPoints) {
-        cardHeaderPoints.innerText = `${state.points.toLocaleString('es-CL')} PUNTOS`;
-      }
-
-      // 2. Update Stamp Counter Text & Subtitle inside card
-      const stampCountText = document.getElementById('stampCountText');
-      if (stampCountText) {
-        stampCountText.innerText = `${state.stamps}/${TOTAL_STAMPS} SELLOS`;
-      }
-
-      const stampSubText = document.getElementById('stampSubText');
-      if (stampSubText) {
-        if (state.stamps === 0) {
-          stampSubText.innerText = '¡Comienza a sumar sellos!';
-        } else if (state.stamps < TOTAL_STAMPS) {
-          const remaining = TOTAL_STAMPS - state.stamps;
-          stampSubText.innerText = `¡Solo ${remaining} sello${remaining === 1 ? '' : 's'} más para tu manicura gratis!`;
-        } else {
-          stampSubText.innerText = '🎉 ¡Premio desbloqueado! Manicura gratis.';
+      if (grid) {
+        let html = '';
+        for (let i = 1; i <= TOTAL_STAMPS; i++) {
+          const isStamped = i <= clientData.stamps;
+          html += `
+            <div id="stampSlot_${i}" class="${isStamped ? 'animate-stamp-pop' : ''} flex items-center justify-center">
+              ${getNailPolishSvg(isStamped, i)}
+            </div>
+          `;
         }
+        grid.innerHTML = html;
       }
 
-      // 3. Update Main Points Value
-      const pointsEl = document.getElementById('pointsValue');
-      if (pointsEl) pointsEl.innerText = state.points.toLocaleString('es-CL');
+      document.getElementById('cardHeaderPoints').innerText = `${clientData.points.toLocaleString('es-CL')} PUNTOS`;
+      document.getElementById('stampCountText').innerText = `${clientData.stamps}/${TOTAL_STAMPS} SELLOS`;
 
-      const equivEl = document.getElementById('pointsEquivalent');
-      if (equivEl) equivEl.innerText = `$${(state.points * 10).toLocaleString('es-CL')}`;
-
-      // 4. Update Client Info
-      const nameEl = document.getElementById('clientNameText');
-      if (nameEl) nameEl.innerText = state.clientName;
-
-      const avatarEl = document.getElementById('clientAvatar');
-      if (avatarEl) avatarEl.innerText = state.clientInitials;
-
-      const tierEl = document.getElementById('clientTierText');
-      if (tierEl) tierEl.innerText = state.clientTier;
-
-      const idEl = document.getElementById('clientIdText');
-      if (idEl) idEl.innerText = state.clientId;
-
-      const secEl = document.getElementById('securityCodeText');
-      if (secEl) secEl.innerText = `${state.clientId.replace('#', '')}-${state.clientInitials}`;
-
-      const rewardClientEl = document.getElementById('rewardClientName');
-      if (rewardClientEl) rewardClientEl.innerText = state.clientName.split(' ')[0];
-
-      // 5. Update Simulation Button Text
-      const btnText = document.getElementById('btnStampText');
-      if (btnText) {
-        if (state.stamps >= TOTAL_STAMPS) {
-          btnText.innerText = '¡Tarjeta Llena! (Ver Premio)';
-        } else {
-          btnText.innerText = `Simular Escaneo (+1 Sello #${state.stamps + 1})`;
-        }
+      const subTextEl = document.getElementById('stampSubText');
+      if (clientData.stamps === 0) {
+        subTextEl.innerText = '¡Comienza a sumar sellos!';
+      } else if (clientData.stamps < TOTAL_STAMPS) {
+        const remaining = TOTAL_STAMPS - clientData.stamps;
+        subTextEl.innerText = `¡Solo ${remaining} sello${remaining === 1 ? '' : 's'} más para tu manicura gratis!`;
+      } else {
+        subTextEl.innerText = '🎉 ¡Premio desbloqueado! Manicura gratis.';
       }
 
-      // 6. Update Scenario Toggle Buttons Style
-      const btnNew = document.getElementById('btnScenarioNew');
-      const btnVip = document.getElementById('btnScenarioVip');
-      if (btnNew && btnVip) {
-        if (currentScenarioId === 'new') {
-          btnNew.className = 'flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 bg-brand-primary text-white shadow-sm';
-          btnVip.className = 'flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-brand-text/70 hover:text-brand-text hover:bg-brand-lightPink';
-        } else {
-          btnVip.className = 'flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 bg-brand-primary text-white shadow-sm';
-          btnNew.className = 'flex-1 py-1.5 px-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-brand-text/70 hover:text-brand-text hover:bg-brand-lightPink';
-        }
-      }
-    }
+      document.getElementById('pointsValue').innerText = clientData.points.toLocaleString('es-CL');
+      document.getElementById('pointsEquivalent').innerText = `$${(clientData.points * 10).toLocaleString('es-CL')}`;
 
-    // Quick switch between "Nueva Clienta" and "Clienta VIP"
-    function setScenario(scenarioKey) {
-      currentScenarioId = scenarioKey;
-      const target = SCENARIOS[scenarioKey];
-      state.stamps = target.stamps;
-      state.points = target.points;
-      state.clientName = target.clientName;
-      state.clientInitials = target.clientInitials;
-      state.clientTier = target.clientTier;
-      state.clientId = target.clientId;
+      document.getElementById('clientNameText').innerText = clientData.name;
+      document.getElementById('clientAvatar').innerText = clientData.initials;
+      document.getElementById('clientTierText').innerText = clientData.tier;
+      document.getElementById('clientIdText').innerText = clientData.id;
+      document.getElementById('securityCodeText').innerText = `${clientData.id.replace('#', '')}-${clientData.initials}`;
+      document.getElementById('rewardClientName').innerText = clientData.name.split(' ')[0];
 
-      playBeepSound();
-      if (navigator.vibrate) navigator.vibrate(30);
-
-      renderStampsGrid();
-      updateQRCode();
-    }
-
-    // Reset current scenario to its baseline
-    function resetCurrentScenario() {
-      setScenario(currentScenarioId);
-    }
-
-    // Simulation: Scan QR at salon terminal & stamp the card
-    function simulateScanAndStamp() {
-      if (state.stamps >= TOTAL_STAMPS) {
+      // Check if newly reached 10 stamps
+      if (prevStamps !== null && prevStamps < TOTAL_STAMPS && clientData.stamps >= TOTAL_STAMPS) {
         triggerConfetti();
         openRewardModal();
-        return;
+        playChime();
+      } else if (prevStamps !== null && clientData.stamps > prevStamps) {
+        playChime();
       }
+      prevStamps = clientData.stamps;
 
-      playBeepSound();
-      if (navigator.vibrate) {
-        navigator.vibrate([50, 40, 60]);
-      }
-
-      // QR Scanner glow animation
-      const qrBox = document.getElementById('qrCardContainer');
-      qrBox.classList.add('scanner-active', 'ring-4', 'ring-brand-accent/60');
-      setTimeout(() => {
-        qrBox.classList.remove('scanner-active', 'ring-4', 'ring-brand-accent/60');
-      }, 1000);
-
-      // Increment state
-      state.stamps += 1;
-      state.points += POINTS_PER_STAMP;
-
-      renderStampsGrid();
       updateQRCode();
-
-      // Check if goal reached!
-      if (state.stamps === TOTAL_STAMPS) {
-        setTimeout(() => {
-          playSuccessChime();
-          triggerConfetti();
-          openRewardModal();
-        }, 400);
-      }
     }
 
-    // Dynamic QR Codes (main and enlarged modal)
+    // Dynamic QR generation
     let qrCodeInstance = null;
     let qrCodeLargeInstance = null;
 
     function updateQRCode() {
       const qrData = JSON.stringify({
         store: "PopeNails Salon & Spa",
-        client: state.clientName,
-        id: state.clientId,
-        points: state.points,
-        stamps: state.stamps,
-        ts: Date.now()
+        client: clientData.name,
+        id: clientData.id,
+        stamps: clientData.stamps,
+        points: clientData.points
       });
 
       const qrContainer = document.getElementById('qrcode');
@@ -766,14 +570,146 @@
       }
     }
 
-    // Modal Handlers
+    // Read client from URL params (?c=Nombre or ?id=...)
+    async function loadClientData() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const clientParam = urlParams.get('c') || urlParams.get('cliente');
+      const idParam = urlParams.get('id');
+
+      // If no parameter: clean welcome state with 0 stamps and 0 points
+      if (!clientParam && !idParam) {
+        clientData = {
+          name: "¡Bienvenida!",
+          initials: "PN",
+          phone: "",
+          stamps: 0,
+          points: 0,
+          tier: "Nueva Clienta",
+          id: "#PN-NUEVA"
+        };
+        renderCard();
+        return;
+      }
+
+      const targetSearch = (clientParam || idParam).trim();
+      const sb = typeof getSupabaseClient === 'function' ? getSupabaseClient() : window.supabaseClient;
+
+      // 1. Try Supabase loyalty_cards table
+      if (sb) {
+        try {
+          let query = sb.from('loyalty_cards').select('*');
+          if (idParam) {
+            query = query.eq('id', idParam);
+          } else {
+            query = query.ilike('client_name', targetSearch);
+          }
+          const { data, error } = await query.maybeSingle();
+
+          if (!error && data) {
+            clientData = {
+              name: data.client_name,
+              initials: getInitials(data.client_name),
+              phone: data.phone || "",
+              stamps: data.stamps || 0,
+              points: data.points || 0,
+              tier: computeTier(data.stamps || 0, data.points || 0),
+              id: `#PN-${(data.id || '84920').toString().slice(-5).toUpperCase()}`
+            };
+            renderCard();
+            return;
+          }
+        } catch (e) {
+          console.warn("Error consultando loyalty_cards en Supabase:", e);
+        }
+      }
+
+      // 2. Fallback: check localStorage mirror
+      try {
+        const localList = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+        const found = localList.find(c => 
+          (c.client_name && c.client_name.toLowerCase() === targetSearch.toLowerCase()) ||
+          (c.id && c.id.toString() === targetSearch)
+        );
+        if (found) {
+          clientData = {
+            name: found.client_name,
+            initials: getInitials(found.client_name),
+            phone: found.phone || "",
+            stamps: found.stamps || 0,
+            points: found.points || 0,
+            tier: computeTier(found.stamps || 0, found.points || 0),
+            id: found.member_id || `#PN-${(found.id || '84920').toString().slice(-5).toUpperCase()}`
+          };
+          renderCard();
+          return;
+        }
+      } catch (e) {}
+
+      // 3. Fallback: check appointments table in Supabase
+      if (sb && clientParam) {
+        try {
+          const { data, error } = await sb.from('appointments')
+            .select('client_name, date, service')
+            .ilike('client_name', targetSearch);
+
+          if (!error && data && data.length > 0) {
+            const count = data.length;
+            const stamps = Math.min(10, count);
+            const points = count * 150;
+            const officialName = data[0].client_name;
+
+            clientData = {
+              name: officialName,
+              initials: getInitials(officialName),
+              phone: "",
+              stamps: stamps,
+              points: points,
+              tier: computeTier(stamps, points),
+              id: `#PN-${Math.abs(officialName.split('').reduce((a,b)=>((a<<5)-a)+b.charCodeAt(0),0)).toString().slice(-5)}`
+            };
+            renderCard();
+            return;
+          }
+        } catch (e) {
+          console.warn("Fallback appointments error:", e);
+        }
+      }
+
+      // 4. Default: New personalized card with 0 stamps
+      clientData = {
+        name: clientParam || "Clienta PopeNails",
+        initials: getInitials(clientParam || "CP"),
+        phone: "",
+        stamps: 0,
+        points: 0,
+        tier: "Nueva Clienta • Bienvenida",
+        id: `#PN-${Math.floor(10000 + Math.random() * 90000)}`
+      };
+      renderCard();
+    }
+
+    // Real-time synchronization
+    function setupRealtimeSync() {
+      // 1. Listen for localStorage changes (e.g., salon staff stamping in another tab)
+      window.addEventListener('storage', (e) => {
+        if (e.key === LOCAL_STORAGE_KEY) {
+          loadClientData();
+        }
+      });
+
+      // 2. Poll Supabase/LocalStorage periodically every 4 seconds
+      setInterval(() => {
+        loadClientData();
+      }, 4000);
+    }
+
+    // Modals
     function toggleQrModal(show) {
       const modal = document.getElementById('qrModal');
       const box = document.getElementById('qrModalBox');
       if (!modal || !box) return;
 
       if (show) {
-        playBeepSound();
         modal.classList.remove('hidden');
         setTimeout(() => {
           modal.classList.remove('opacity-0');
@@ -803,7 +739,7 @@
       }, 10);
     }
 
-    function closeRewardModal(resetCycle) {
+    function closeRewardModal() {
       const modal = document.getElementById('rewardModal');
       const box = document.getElementById('rewardModalBox');
       if (!modal || !box) return;
@@ -813,16 +749,9 @@
       box.classList.add('scale-95');
       setTimeout(() => {
         modal.classList.add('hidden');
-        if (resetCycle) {
-          state.stamps = 0;
-          renderStampsGrid();
-          updateQRCode();
-          triggerConfetti();
-        }
       }, 300);
     }
 
-    // Confetti celebration
     function triggerConfetti() {
       if (typeof confetti === 'function') {
         confetti({
@@ -831,35 +760,18 @@
           origin: { y: 0.6 },
           colors: ['#C97B8A', '#E8A0A8', '#FFF7F5', '#4A2535', '#FFD166']
         });
-        setTimeout(() => {
-          confetti({
-            particleCount: 50,
-            angle: 60,
-            spread: 55,
-            origin: { x: 0 },
-            colors: ['#C97B8A', '#E8A0A8', '#FFFFFF']
-          });
-          confetti({
-            particleCount: 50,
-            angle: 120,
-            spread: 55,
-            origin: { x: 1 },
-            colors: ['#C97B8A', '#E8A0A8', '#FFFFFF']
-          });
-        }, 250);
       }
     }
 
-    // Share & PWA
     function shareOrInstallCard() {
       if (navigator.share) {
         navigator.share({
-          title: 'PopeNails - Tarjeta de Fidelización',
-          text: `Tarjeta de sellos y puntos en PopeNails. (${state.stamps}/10 sellos y ${state.points} puntos)`,
+          title: 'PopeNails - Mi Tarjeta de Fidelización',
+          text: `Tarjeta de sellos en PopeNails de ${clientData.name} (${clientData.stamps}/10 sellos).`,
           url: window.location.href
         }).catch(() => {});
       } else {
-        alert('Para instalar PopeNails en tu pantalla de inicio:\n\n• En iOS (Safari): Presiona Compartir y "Agregar a pantalla de inicio".\n• En Android (Chrome): Presiona el menú (⋮) y "Instalar aplicación".');
+        alert('Para instalar PopeNails en tu pantalla de inicio:\n\n• En iPhone (Safari): Presiona el botón "Compartir" y selecciona "Agregar al inicio".\n• En Android (Chrome): Presiona el menú (⋮) y selecciona "Instalar aplicación" o "Agregar a la pantalla principal".');
       }
     }
 
@@ -870,12 +782,10 @@
       });
     }
 
-    // Initial Execution (Starts in Nueva Clienta by default: 0 sellos, 0 puntos)
+    // Init
     window.addEventListener('DOMContentLoaded', () => {
-      renderStampsGrid();
-      setTimeout(() => {
-        updateQRCode();
-      }, 100);
+      loadClientData();
+      setupRealtimeSync();
     });
   </script>
 </body>
